@@ -9,7 +9,7 @@ class UserOut(BaseModel):
     first_name: str
     last_name: str
     email: EmailStr
-    business_name: str = None
+    business_name: Optional[str] = None
     role: Role
     bvn_verified: bool
     bank_verified: bool 
