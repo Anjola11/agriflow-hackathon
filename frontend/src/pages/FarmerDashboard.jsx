@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import KYCModal from '../components/KYCModal';
 import { mockFarmerFarms, cropTypes, nigeriaStates } from '../data/mockData';
 import EmptyState from '../components/EmptyState';
 import DashboardLayout from '../components/DashboardLayout';
@@ -566,6 +567,7 @@ export default function FarmerDashboard() {
   const [farmsPage, setFarmsPage] = useState(1);
   const fbStart = (farmsPage - 1) * ITEMS_PER_PAGE;
   const { user, logout, fetchProfile } = useAuth();
+  const [isKycOpen, setIsKycOpen] = useState(false);
   
   useEffect(() => {
     fetchProfile();
@@ -586,6 +588,7 @@ export default function FarmerDashboard() {
   );
 
   return (
+    <>
     <DashboardLayout navItems={navItems} activeTab={tab} onTabChange={handleTabChange} footer={navFooter}>
         {!kycComplete && (
           <div className="kyc-banner" style={{
@@ -650,7 +653,7 @@ export default function FarmerDashboard() {
               boxShadow: '0 4px 12px rgba(245, 158, 11, 0.25)',
               padding: '10px 16px',
               fontWeight: 600
-            }} onClick={() => handleTabChange('settings')}>
+            }} onClick={() => setIsKycOpen(true)}>
               Complete Setup
             </button>
           </div>
@@ -783,5 +786,7 @@ export default function FarmerDashboard() {
           </div>
         )}
     </DashboardLayout>
+    <KYCModal isOpen={isKycOpen} onClose={() => setIsKycOpen(false)} role="farmer" />
+    </>
   );
 }

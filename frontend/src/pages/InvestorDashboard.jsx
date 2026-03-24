@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { mockAllPayouts } from "../data/mockData";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import KYCModal from "../components/KYCModal";
 import {
   mockInvestorPortfolio,
   mockExpectedPayoutsExpanded,
@@ -48,6 +49,7 @@ export default function InvestorDashboard() {
   });
   const [detailsSaved, setDetailsSaved] = useState(false);
   const { user, logout, fetchProfile } = useAuth();
+  const [isKycOpen, setIsKycOpen] = useState(false);
   
   useEffect(() => {
     fetchProfile();
@@ -131,6 +133,7 @@ export default function InvestorDashboard() {
 
   console.log(user);
   return (
+    <>
     <DashboardLayout
       navItems={navItems}
       activeTab={tab}
@@ -200,7 +203,7 @@ export default function InvestorDashboard() {
             boxShadow: '0 4px 12px rgba(245, 158, 11, 0.25)',
             padding: '10px 16px',
             fontWeight: 600
-          }} onClick={() => handleTabChange("settings")}>
+          }} onClick={() => setIsKycOpen(true)}>
             Complete Setup
           </button>
         </div>
@@ -1094,6 +1097,8 @@ export default function InvestorDashboard() {
         </div>
       )}
     </DashboardLayout>
+    <KYCModal isOpen={isKycOpen} onClose={() => setIsKycOpen(false)} role="investor" />
+    </>
   );
 }
 
