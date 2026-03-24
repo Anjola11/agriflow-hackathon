@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { mockAllPayouts } from "../data/mockData";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import KYCModal from "../components/KYCModal";
 import {
   mockInvestorPortfolio,
   mockExpectedPayoutsExpanded,
@@ -48,6 +49,7 @@ export default function InvestorDashboard() {
   });
   const [detailsSaved, setDetailsSaved] = useState(false);
   const { user, logout, fetchProfile } = useAuth();
+  const [isKycOpen, setIsKycOpen] = useState(false);
   
   useEffect(() => {
     fetchProfile();
@@ -131,6 +133,7 @@ export default function InvestorDashboard() {
 
   console.log(user);
   return (
+    <>
     <DashboardLayout
       navItems={navItems}
       activeTab={tab}
@@ -138,74 +141,70 @@ export default function InvestorDashboard() {
       footer={navFooter}
     >
       {!kycComplete && (
-        <div
-          style={{
-            background: "var(--color-accent-light)",
-            border: "1px solid var(--color-accent)",
-            padding: "16px 20px",
-            borderRadius: "8px",
-            marginBottom: "24px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: "16px",
-          }}
-        >
-          <div>
-            <h4
-              style={{
-                color: "var(--color-accent)",
-                fontWeight: 600,
-                fontSize: "15px",
-                marginBottom: "4px",
-              }}
-            >
-              Complete your verification to start investing.
-            </h4>
-            <div
-              style={{
-                display: "flex",
-                gap: "8px",
-                fontSize: "13px",
-                color: "var(--color-text-secondary)",
-              }}
-            >
-              <span
-                style={{
-                  color: user?.bvn_verified
-                    ? "var(--color-primary)"
-                    : "inherit",
-                  fontWeight: user?.bvn_verified ? 600 : 400,
-                }}
-              >
-                {user?.bvn_verified ? "✓ BVN Verified" : "○ Verify BVN"}
-              </span>
-              <span>→</span>
-              <span
-                style={{
-                  color: user?.bank_verified
-                    ? "var(--color-primary)"
-                    : "inherit",
-                  fontWeight: user?.bank_verified ? 600 : 400,
-                }}
-              >
-                {user?.bank_verified
-                  ? "✓ Bank Account Added"
-                  : "○ Add Bank Account"}
-              </span>
+        <div className="kyc-banner" style={{
+          background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(245, 158, 11, 0.01) 100%)',
+          border: '1px solid rgba(245, 158, 11, 0.3)',
+          borderLeft: '4px solid #f59e0b',
+          padding: '20px 24px',
+          borderRadius: '12px',
+          marginBottom: '28px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '20px',
+          boxShadow: 'var(--shadow-sm)',
+          backdropFilter: 'blur(8px)'
+        }}>
+          <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+            <div style={{ 
+              background: 'rgba(245, 158, 11, 0.15)', 
+              color: '#f59e0b', 
+              width: '40px', 
+              height: '40px', 
+              borderRadius: '10px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              fontSize: '20px',
+              flexShrink: 0 
+            }}>🔒</div>
+            <div>
+              <h4 style={{ color: 'var(--color-text-primary)', fontWeight: 600, fontSize: '15px', marginBottom: '6px' }}>
+                Verification Required to Start Investing
+              </h4>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+                <span style={{ 
+                  color: user?.bvn_verified ? 'var(--color-primary)' : 'var(--color-text-secondary)', 
+                  fontWeight: 500,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}>
+                  {user?.bvn_verified ? '✅ BVN' : '⭕ Verify BVN'}
+                </span>
+                <span style={{ color: 'var(--color-text-muted)' }}>→</span>
+                <span style={{ 
+                  color: user?.bank_verified ? 'var(--color-primary)' : 'var(--color-text-secondary)', 
+                  fontWeight: 500,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}>
+                  {user?.bank_verified ? '✅ Bank Account' : '⭕ Add Bank'}
+                </span>
+              </div>
             </div>
           </div>
-          <button
-            className="btn btn-solid btn-sm"
-            style={{
-              background: "var(--color-accent)",
-              color: "#fff",
-              border: "none",
-            }}
-            onClick={() => handleTabChange("settings")}
-          >
-            Complete Verification
+          <button className="btn btn-solid btn-sm" style={{ 
+            background: '#f59e0b', 
+            color: '#fff', 
+            border: 'none',
+            boxShadow: '0 4px 12px rgba(245, 158, 11, 0.25)',
+            padding: '10px 16px',
+            fontWeight: 600
+          }} onClick={() => setIsKycOpen(true)}>
+            Complete Setup
           </button>
         </div>
       )}
@@ -1098,6 +1097,8 @@ export default function InvestorDashboard() {
         </div>
       )}
     </DashboardLayout>
+    <KYCModal isOpen={isKycOpen} onClose={() => setIsKycOpen(false)} role="investor" />
+    </>
   );
 }
 
