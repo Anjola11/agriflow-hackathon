@@ -87,7 +87,10 @@ export default function AdminLogin() {
               className={`form-input${errors.email ? " error" : ""}`}
               type="email"
               placeholder="admin@agriflow.ng"
-              {...register("email", { required: "Email is required" })}
+              {...register("email", { 
+                required: "Email is required",
+                pattern: { value: /\S+@\S+\.\S+/, message: "Invalid email address" } 
+              })}
             />
             {errors.email && (
               <span className="form-error">{errors.email.message}</span>
