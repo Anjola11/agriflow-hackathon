@@ -1,0 +1,439 @@
+# Frontend Task List — AgriFlow
+
+AgriFlow is a farm investment platform that connects verified farmers to investors. The backend is live and connected to a Supabase database. Your job is to build the frontend — pages, components, routing, and full API integration — from the ground up.
+
+---
+
+## What is live on the backend right now
+
+```http
+# Auth
+POST /api/v1/auth/signup
+POST /api/v1/auth/login
+POST /api/v1/auth/admin/login
+POST /api/v1/auth/logout
+POST /api/v1/auth/renew-access-token
+GET  /api/v1/auth/me
+
+# KYC — Farmers
+POST /api/v1/farmers/verify-bvn
+POST /api/v1/farmers/bank-account
+
+# KYC — Investors
+POST /api/v1/investors/verify-bvn
+POST /api/v1/investors/bank-account
+
+# Crops Reference
+GET  /api/v1/crops
+GET  /api/v1/crops/{crop_id}/estimate?farm_size_ha=5.0
+
+# Banks List
+GET  /api/v1/banks   (seeded — ~500 Nigerian banks)
+```
+
+---
+
+## Part 1: API Client Setup
+
+### Task 1 — Axios Base Instance
+
+Create a shared API client (e.g. `src/utils/api.js`):
+
+```javascript
+import axios from "axios";
+
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL, // e.g. http://localhost:8000/api/v1
+  withCredentials: true, // ← critical: sends httpOnly cookies on every request
+  headers: { "Content-Type": "application/json" },
+});
+
+export default api;
+```
+
+Create a `.env` file in the frontend root:
+
+```
+VITE_API_BASE_URL=http://localhost:8000/api/v1
+```
+
+### Task 2 — Token Renewal Interceptor
+
+Add a response interceptor to the axios instance:
+
+```
+Request fails with 401
+  → POST /api/v1/auth/renew-access-token   (cookies sent automatically)
+  → backend sets new access_token cookie
+  → retry the original request
+  → if renewal also fails → clear user state → redirect to /auth
+```
+
+---
+
+## Part 2: Authentication
+
+### Task 3 — Signup (`/auth` signup tab)
+
+Form fields: `first_name`, `last_name`, `email`, `password`, `role` (farmer | investor). Optionally `business_name`.
+
+```json
+POST /api/v1/auth/signup
+{
+  "first_name": "Adebayo",
+  "last_name": "Olusola",
+  "email": "adebayo@gmail.com",
+  "password": "password123",
+  "role": "farmer",
+  "business_name": "Olusola Farms"   // optional
+}
+```
+
+Response `data` contains: `uid`, `first_name`, `last_name`, `email`, `role`.  
+Tokens are set as **httpOnly cookies** — you do not receive them in the body.
+
+- On `201` → store user in context → redirect to `/farmer/dashboard` or `/investor/dashboard` based on `role`.
+- On `409` → show "An account with these details already exists."
+- On `422` → show field validation errors.
+
+### Task 4 — Login (`/auth` login tab)
+
+```json
+POST /api/v1/auth/login
+{
+  "email": "adebayo@gmail.com",
+  "password": "password123",
+  "role": "farmer"
+}
+```
+
+- On `200` → same redirect logic as signup.
+- On `400` → show "Invalid credentials."
+
+### Task 5 — Admin Login (`/admin/login`)
+
+Separate page, no role selector.
+
+```json
+POST /api/v1/auth/admin/login
+{
+  "email": "admin@agriflow.ng",
+  "password": "Admin123!"
+}
+```
+
+- On `200` → redirect to `/admin/dashboard`.
+- On `400` → show "Invalid credentials."
+
+### Task 6 — Logout
+
+```
+POST /api/v1/auth/logout   → cookies cleared by backend
+→ clear local user state → navigate to /auth
+```
+
+### Task 7 — Demo Quick-Access Buttons
+
+The auth page has "Quick demo access" buttons. Wire them to auto-fill and submit the real login endpoint using preloaded seeded credentials:
+
+```
+Farmer View   → email: farmer1@agriflow.ng  | password: Farmer123!  | role: farmer
+Investor View → email: investor1@agriflow.ng | password: Invest123! | role: investor
+Admin View    → redirect to /admin/login, auto-fill: admin@agriflow.ng / Admin123!
+```
+
+---
+
+## Part 3: User Profile & Route Protection
+
+### Task 8 — `/auth/me` on Dashboard Load
+
+Call `GET /api/v1/auth/me` when any dashboard mounts. Use the response to:
+
+- Populate global user state (React context or Zustand).
+- Determine KYC status via `bvn_verified` and `bank_verified`.
+
+Response shape for farmers:
+
+```json
+{
+  "uid": "...",
+  "first_name": "Adebayo",
+  "last_name": "Olusola",
+  "email": "adebayo@gmail.com",
+  "business_name": "Olusola Farms",
+  "role": "farmer",
+  "bvn_verified": false,
+  "bank_verified": false,
+  "trust_score": 0,
+  "trust_tier": "unrated",
+  "is_active": true
+}
+```
+
+`trust_score` and `trust_tier` are always `null` for investors — never display them in the investor UI.
+
+### Task 9 — Route Protection
+
+Ensure `App.jsx` routing wrappers check the real role from `/auth/me`:
+
+| Route                 | Allowed role |
+| --------------------- | ------------ |
+| `/farmer/dashboard`   | `farmer`     |
+| `/investor/dashboard` | `investor`   |
+| `/admin/dashboard`    | `admin`      |
+
+Wrong role → redirect to `/auth`.
+
+---
+
+## Part 4: KYC Verification (BVN + Bank)
+
+Both farmer and investor KYC flows follow the same pattern, with one important difference: **trust score and tier are only shown to farmers, never investors.**
+
+### Task 10 — KYC Banner
+
+If `bvn_verified: false` OR `bank_verified: false`, show a persistent top banner in the respective dashboard:
+
+- Farmers: _"Complete your verification to start listing farms. Verify BVN → Add Bank Account"_
+- Investors: _"Complete your verification to start investing. Verify BVN → Add Bank Account"_
+
+Banner disappears when both are `true`.
+
+### Task 11 — BVN Verification Modal/Step
+
+Triggered from the KYC banner. Collects the 11-digit BVN.
+
+```json
+POST /api/v1/farmers/verify-bvn    (or /investors/verify-bvn)
+{ "bvn": "12345678901" }
+```
+
+- `bvn` must be exactly 11 digits (enforce on frontend too).
+- On success for **farmers** → the response includes `trust_score` and `trust_tier`. Display these immediately in a result screen before advancing to the bank step:
+
+```
+┌─────────────────────────────────────────────┐
+│  ✅ BVN Verified                            │
+│                                             │
+│  Your Trust Score                           │
+│  65 / 100  ████████░░  Emerging Farmer      │  ← amber badge
+│                                             │
+│  Add your bank account to boost your score  │
+│  and unlock full access.                    │
+│                                             │
+│            [ Continue → ]                  │
+└─────────────────────────────────────────────┘
+```
+
+- On success for **investors** → show "BVN Verified ✅" and proceed to bank step. No score shown.
+- On error → show backend error message.
+
+### Task 12 — Bank Account Modal/Step
+
+Triggered after BVN is verified. Requires two fields:
+
+```json
+POST /api/v1/farmers/bank-account    (or /investors/bank-account)
+{
+  "bank_code": "044",         // from the banks list
+  "account_num": "0123456789" // exactly 10 digits
+}
+```
+
+**Bank Name Dropdown:** Fetch `GET /api/v1/banks` to populate a searchable dropdown of all Nigerian banks. Use `code` as the value sent to the API and `name` for display.
+
+On success for **farmers** → the response includes updated `trust_score` and `trust_tier`. Show a completion screen:
+
+```
+┌─────────────────────────────────────────────┐
+│  ✅ Bank Account Added                      │
+│  We confirmed this account belongs to       │
+│  MICHAEL JOHN DOE. Is this you?             │
+│                                             │
+│  Your Updated Trust Score                   │
+│  90 / 100  █████████░  Verified Farmer      │  ← green badge
+│                                             │
+│  🎉 Keep earning points by completing       │
+│  farm milestones and harvest reports.       │
+│                                             │
+│          [ Go to Dashboard ]                │
+└─────────────────────────────────────────────┘
+```
+
+Update global state immediately with `bank_verified: true`, `trust_score`, and `trust_tier` — do not wait for a `/me` refetch. The dashboard trust score card should reflect the new values instantly.
+
+On success for **investors** → show confirmed account name and proceed. No score shown.
+
+### Task 13 — KYC Constraints
+
+- Farmers **cannot** submit the Create Farm form until `bvn_verified: true` AND `bank_verified: true` — disable/block the wizard submit.
+- Investors **cannot** complete an investment until fully verified — disable "Invest Now" and show a prompt to complete KYC.
+
+---
+
+## Part 5: Farm Creation Wizard (Farmer Dashboard)
+
+### Task 14 — 4-Step Create Farm Wizard
+
+The Create Farm tab should be a guided wizard:
+
+**Step 1 — Farm Details**
+
+- Crop selector: fetch `GET /api/v1/crops` to populate a dropdown. Each crop has name, unit, growing months, etc.
+- Farm size (hectares) input.
+- After crop + size are entered → call `GET /api/v1/crops/{crop_id}/estimate?farm_size_ha={size}` to auto-fill estimated budget, yield, and return range.
+- Farm name, location (state), description, photo upload.
+
+**Step 2 — Budget**
+
+- Show pre-populated cost breakdown from the estimate. Allow farmer to adjust within allowed deviation.
+
+**Step 3 — Timeline & Yields**
+
+- Investment start/end dates (deadline for investors).
+- Confirm yield and pricing predictions from estimate.
+- Define milestone names and expected completion dates.
+
+**Step 4 — Review & Submit**
+
+- Summary of all entered data.
+- Submit button → `POST /api/v1/farms` _(coming soon — coordinate with backend)_.
+- Entire wizard is **blocked** if farmer is not fully verified.
+
+---
+
+## Part 6: UI Features
+
+### Task 15 — Landing Page (`/`)
+
+- Hero: "Browse Active Farms" → `/farms`, "List Your Farm" → `/auth` (signup tab, role=farmer pre-selected).
+- Add sample farm preview card with a progress bar and milestone breakdown.
+- Add three trust stats: "No hidden fees", "Verified farmers only", "Harvest-backed returns".
+
+### Task 16 — Farm Marketplace (`/farms`)
+
+- Sort dropdown: newest, funding %, return rate, deadline.
+- Filter bar: by crop type, state, status.
+- Farm cards must show:
+  - Remaining days to investment deadline.
+  - Farmer trust tier badge next to the farmer's name. Use the colour system below — **never use red for any tier.**
+
+```
+verified  → green badge   "Verified Farmer"
+emerging  → amber badge   "Emerging Farmer"
+unrated   → grey badge    "Unrated"
+```
+
+### Task 17 — Farm Detail Page (`/farms/:id`)
+
+- Milestone timeline showing locked / pending proof / under review / verified / disbursed states clearly.
+- Budget breakdown bar or table.
+- ROI scenario cards (Conservative, Expected, Optimistic) — recalculate dynamically as investor types their investment amount.
+- **Farmer profile section** — show the farmer's trust tier badge and trust score:
+
+```
+Farmer Profile
+──────────────
+Adebayo Olusola
+✓ BVN Verified
+
+Trust Score   90 / 100
+              ██████████  Verified Farmer   ← green
+```
+
+Add an info tooltip on the trust score:
+
+> "AgriFlow's trust score combines BVN identity verification, credit history, and bank account verification. A higher score means a stronger financial track record. All farmers on AgriFlow are BVN-verified."
+
+This reassures investors that even an Unrated farmer is not a fraud risk — they simply have a limited credit history.
+
+- Investment panel:
+  - Not logged in → "Invest Now" saves state and routes to `/auth`.
+  - Logged in but not KYC verified → "Complete your KYC to invest."
+
+### Task 18 — Farmer Dashboard Pages
+
+The farmer dashboard always shows the trust score card in a visible position (e.g. top of the overview tab). It reflects the current values from global state — no separate fetch needed.
+
+```
+┌─────────────────────────────┐
+│ Your Trust Score            │
+│                             │
+│  90 / 100                   │
+│  █████████░  Verified Farmer│  ← green progress bar, green badge
+│                             │
+│  Complete more farms to     │
+│  earn additional points     │
+└─────────────────────────────┘
+```
+
+If the farmer has not yet completed BVN verification, show a placeholder:
+
+```
+┌─────────────────────────────┐
+│ Your Trust Score            │
+│                             │
+│  Complete KYC verification  │
+│  to receive your score      │
+└─────────────────────────────┘
+```
+
+Other tabs:
+
+- **My Farms Tab:** Warning for `deadline_passed` farms with "Extend Deadline" and "Cancel & Refund Investors" actions.
+- **Milestones Tab:** "Submit Proof" button opens a photo uploader + optional GPS capture UI.
+- **Harvest Reports Tab:** Form for actual yield and total sales, shown only for farms with all milestones disbursed.
+- **Settings Tab:** Update name/email. Payout details — bank dropdown (from `/api/v1/banks`), account number, account name.
+
+### Task 19 — Investor Dashboard Pages
+
+- **Expected Payouts Tab:** 5-step progress tracker — Invested → Milestones Done → Harvest Collected → Proceeds In → Payout Sent. Link to `/receipts/:id` once processed.
+- **Settings Tab:** Same as farmer — update account info and payout bank details.
+
+### Task 20 — Admin Dashboard Pages
+
+- **Pending Reviews Tab:** Show farmer trust tier on each listing card. "Reject" opens a modal asking for a reason.
+- **Milestone Proofs Tab:** List submitted proofs per farm. "Approve" (releases funds) or "Reject" (shows a callout with rejection reason).
+- **Payouts Tab:** "Initiate All Transfers" block for ready payouts via Interswitch.
+
+---
+
+## Trust Tier Colour System — Global Rule
+
+**Never use red for any trust tier.** Every farmer on AgriFlow is BVN-verified. The tiers reflect depth of financial history, not trustworthiness or character.
+
+| Tier       | Score range | Badge colour   | Label           |
+| ---------- | ----------- | -------------- | --------------- |
+| `verified` | 75 – 100    | Green          | Verified Farmer |
+| `emerging` | 50 – 74     | Amber / orange | Emerging Farmer |
+| `unrated`  | 0 – 49      | Grey           | Unrated         |
+
+This colour system applies everywhere a tier appears: farmer dashboard, farm listing cards, farm detail pages, and admin review cards.
+
+---
+
+## Summary: What's Live vs What's Coming
+
+| Feature                     | Status            |
+| --------------------------- | ----------------- |
+| Signup (farmer / investor)  | ✅ Live           |
+| Login (farmer / investor)   | ✅ Live           |
+| Admin login                 | ✅ Live           |
+| Logout                      | ✅ Live           |
+| Token renew interceptor     | ✅ Ready to build |
+| Get current user (`/me`)    | ✅ Live           |
+| BVN verification (farmer)   | ✅ Live           |
+| Bank account (farmer)       | ✅ Live           |
+| BVN verification (investor) | ✅ Live           |
+| Bank account (investor)     | ✅ Live           |
+| Crops list + estimate       | ✅ Live           |
+| Banks list                  | ✅ Live (seeded)  |
+| KYC banner & constraints    | ✅ Ready to build |
+| Route protection            | ✅ Ready to build |
+| Farm CRUD                   | ⏳ Coming soon    |
+| Investments API             | ⏳ Coming soon    |
+| Milestone proof submissions | ⏳ Coming soon    |
+| Payouts API                 | ⏳ Coming soon    |
+
+Your priority is: **Tasks 1–13 first** (API client, auth, KYC). Once those are done the KYC and dashboard experience will be fully functional with real data. Farm creation (Task 14) can run in parallel since Step 1 only needs the crops endpoint which is already live.
