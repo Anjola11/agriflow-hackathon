@@ -22,8 +22,10 @@ class AuthUserOut(BaseModel):
     first_name: str
     last_name: str
     email: EmailStr
-    business_name: str = None
+    business_name: Optional[str] = None
     role: Role
+    access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
 
 class AdminOut(BaseModel):
     uid: uuid.UUID
@@ -37,7 +39,7 @@ class UserCreateInput(BaseModel):
     first_name: str
     last_name: str
     email: EmailStr
-    business_name: str = None
+    business_name: Optional[str] = None
     role: Role
     password: str
 
