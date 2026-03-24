@@ -2654,7 +2654,17 @@ banks = [
       }
     ]
 
+
+
+import sys
+from pathlib import Path
 from typing import List
+
+if __package__ is None or __package__ == "":
+    backend_root = Path(__file__).resolve().parents[2]
+    if str(backend_root) not in sys.path:
+        sys.path.insert(0, str(backend_root))
+
 from src.db.main import async_session_maker
 from src.bank.models import Bank
 from sqlalchemy.exc import DatabaseError
