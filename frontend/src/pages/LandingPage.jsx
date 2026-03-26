@@ -56,7 +56,7 @@ export default function LandingPage() {
               </p>
               <div className="hero-ctas">
                 <Link to="/farms" className="btn btn-solid btn-lg">Browse Active Farms</Link>
-                <Link to="/auth?tab=signup" className="btn btn-ghost btn-lg">List Your Farm</Link>
+                <Link to="/auth?tab=signup&role=farmer" className="btn btn-ghost btn-lg">List Your Farm</Link>
               </div>
             </div>
             <div className="hero-visual">
@@ -73,15 +73,20 @@ export default function LandingPage() {
                   </div>
                 </div>
                 <div className="preview-milestones">
-                  {['Planting ✓', 'Chemicals', 'Weeding', 'Harvest'].map((m, i) => (
-                    <div key={m} className={`preview-milestone ${i === 0 ? 'done' : i === 1 ? 'active' : ''}`}>
+                  {[
+                    { name: 'Plot Prep', status: 'done' },
+                    { name: 'Seedlings', status: 'done' },
+                    { name: 'Fertilizer', status: 'active' },
+                    { name: 'Harvest', status: 'pending' },
+                  ].map((m, i) => (
+                    <div key={m.name} className={`preview-milestone ${m.status}`}>
                       <span className="preview-dot" />
-                      <span>{m}</span>
+                      <span>{m.name} {m.status === 'done' ? '✓' : ''}</span>
                     </div>
                   ))}
                 </div>
                 <div className="preview-returns">
-                  <span>Cash return</span>
+                  <span>Target Return</span>
                   <span className="text-mono preview-return-val">+24%</span>
                 </div>
               </div>
@@ -96,17 +101,17 @@ export default function LandingPage() {
           <div className="trust-inner">
             <div className="trust-stat">
               <span className="trust-value text-mono">₦0</span>
-              <span className="trust-label">hidden fees</span>
+              <span className="trust-label">No hidden fees</span>
             </div>
             <div className="trust-divider" />
             <div className="trust-stat">
-              <span className="trust-value text-mono">Manual</span>
-              <span className="trust-label">verification on every milestone</span>
+              <span className="trust-value text-mono">100%</span>
+              <span className="trust-label">Verified farmers only</span>
             </div>
             <div className="trust-divider" />
             <div className="trust-stat">
-              <span className="trust-value text-mono">Harvest-</span>
-              <span className="trust-label">backed returns</span>
+              <span className="trust-value text-mono">Cycle</span>
+              <span className="trust-label">Harvest-backed returns</span>
             </div>
           </div>
         </div>

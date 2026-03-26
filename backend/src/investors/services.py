@@ -3,6 +3,7 @@ from sqlmodel import select
 from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from src.auth.models import User
 from src.interswitch.services import InterswitchMarketplaceServices
 from src.investors.schemas import VerifyBVNInput, AddBankAccountInput
 from src.utils.bank import names_match

@@ -207,7 +207,9 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState(mockAdminStats);
   const [pendingFarms, setPendingFarms] = useState([]);
   const [proofs, setProofs] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedUser, setSelectedUser] = useState(null);
 
   const { addToast } = useToast();
   const { user, logout, fetchProfile } = useAuth();
@@ -240,9 +242,18 @@ export default function AdminDashboard() {
     }
   };
 
+  const fetchUsers = async () => {
+    try {
+      const res = await api.get('/admin/users');
+      if (res.data.success) setUsers(res.data.data);
+    } catch (err) {
+      console.error('Users fetch failed:', err);
+    }
+  };
+
   const initData = async () => {
     setLoading(true);
-    await Promise.all([fetchStats(), fetchPendingFarms(), fetchPendingProofs()]);
+    await Promise.all([fetchStats(), fetchPendingFarms(), fetchPendingProofs(), fetchUsers()]);
     setLoading(false);
   };
 
@@ -313,7 +324,10 @@ export default function AdminDashboard() {
     addToast(`Payout ID ${id} manually retried.`, 'success');
   };
 
-  const filteredUsers = mockUsersExpanded.filter(u => u.name.toLowerCase().includes(searchUsers.toLowerCase()) || u.email.toLowerCase().includes(searchUsers.toLowerCase()));
+  const filteredUsers = users.filter(u =>
+    u.full_name?.toLowerCase().includes(searchUsers.toLowerCase()) ||
+    u.email?.toLowerCase().includes(searchUsers.toLowerCase())
+  );
 
   // Payouts Pagination Logic
   const filteredPayouts = payoutsList.filter(p => p.farmId === selectedPayoutFarm && (payoutStatusFilter === 'all' || p.status === payoutStatusFilter));
@@ -332,6 +346,18 @@ export default function AdminDashboard() {
   const [proofsPage, setProofsPage] = useState(1);
   const rbStart = (proofsPage - 1) * ITEMS_PER_PAGE;
   const paginatedProofs = proofs.slice(rbStart, rbStart + ITEMS_PER_PAGE);
+
+  // User profile drawer helper
+  const getTierColor = (tier) => {
+    if (tier === 'verified') return 'var(--color-primary)';
+    if (tier === 'emerging') return '#f59e0b';
+    return 'var(--color-text-muted)';
+  };
+  const getTierLabel = (tier) => {
+    if (tier === 'verified') return 'Verified Farmer';
+    if (tier === 'emerging') return 'Emerging Farmer';
+    return 'Unrated';
+  };
 
   // Reset pagination on filter change
   useEffect(() => setPayoutsPage(1), [selectedPayoutFarm, payoutStatusFilter]);
@@ -640,24 +666,109 @@ export default function AdminDashboard() {
             <div style={{ overflowX: 'auto' }}>
               <table className="data-table">
                 <thead>
-                  <tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th>Farms</th><th>Investments</th><th>Actions</th></tr>
+                  <tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th>Farms</th><th>KYC</th><th>Actions</th></tr>
                 </thead>
                 <tbody>
                   {paginatedUsers.map(u => (
-                    <tr key={u.id}>
-                      <td style={{ fontWeight: 500 }}>{u.name}</td>
+                    <tr key={u.uid} style={{ cursor: 'pointer' }} className="hover-row" onClick={() => setSelectedUser(u)}>
+                      <td style={{ fontWeight: 500 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '13px', flexShrink: 0 }}>
+                            {u.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                          </div>
+                          {u.full_name}
+                        </div>
+                      </td>
                       <td style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>{u.email}</td>
                       <td><span className={`badge badge-${u.role === 'investor' ? 'active' : 'pending'}`} style={{ textTransform: 'capitalize' }}>{u.role}</span></td>
-                      <td style={{ fontSize: '13px' }}>{new Date(u.joined).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
-                      <td className="text-mono">{u.farms}</td>
-                      <td className="text-mono">{u.investments}</td>
-                      <td><button className="btn-link" style={{ color: 'var(--color-danger)' }}>Suspend</button></td>
+                      <td style={{ fontSize: '13px' }}>{u.created_at ? new Date(u.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</td>
+                      <td className="text-mono">{u.farm_count ?? 0}</td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                          {u.bvn_verified && <span className="badge badge-active" style={{ fontSize: '11px' }}>BVN</span>}
+                          {u.bank_verified && <span className="badge badge-active" style={{ fontSize: '11px' }}>Bank</span>}
+                          {!u.bvn_verified && !u.bank_verified && <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>None</span>}
+                        </div>
+                      </td>
+                      <td><button className="btn-link" onClick={e => { e.stopPropagation(); setSelectedUser(u); }}>View</button></td>
                     </tr>
                   ))}
+                  {paginatedUsers.length === 0 && (
+                    <tr><td colSpan="7" style={{ textAlign: 'center', padding: '32px', color: 'var(--color-text-secondary)' }}>No users found.</td></tr>
+                  )}
                 </tbody>
               </table>
               <Pagination currentPage={usersPage} totalPages={Math.ceil(filteredUsers.length / ITEMS_PER_PAGE)} onPageChange={setUsersPage} />
             </div>
+
+            {/* Farmer Profile Drawer */}
+            {selectedUser && (
+              <>
+                <div className="drawer-backdrop" onClick={() => setSelectedUser(null)} />
+                <div className="batch-drawer" role="dialog" aria-modal="true" style={{ maxWidth: '420px' }}>
+                  <button className="drawer-close btn-ghost" aria-label="Close" onClick={() => setSelectedUser(null)} style={{ position: 'absolute', top: 12, right: 12, padding: '8px' }}>✕</button>
+                  
+                  {/* Avatar + Name */}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '24px', textAlign: 'center' }}>
+                    <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '26px', marginBottom: '12px' }}>
+                      {selectedUser.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                    </div>
+                    <h2 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '4px' }}>{selectedUser.full_name}</h2>
+                    <span className={`badge badge-${selectedUser.role === 'investor' ? 'active' : 'pending'}`} style={{ textTransform: 'capitalize', fontSize: '12px' }}>{selectedUser.role}</span>
+                    {selectedUser.role === 'farmer' && selectedUser.trust_tier && (
+                      <div style={{ marginTop: '8px', padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 600, background: `${getTierColor(selectedUser.trust_tier)}18`, color: getTierColor(selectedUser.trust_tier) }}>
+                        ● {getTierLabel(selectedUser.trust_tier)}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Details */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {[  
+                      ['Email', selectedUser.email],
+                      ['Member Since', selectedUser.created_at ? new Date(selectedUser.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'],
+                      ...(selectedUser.role === 'farmer' ? [['Farms Listed', selectedUser.farm_count ?? 0]] : []),
+                    ].map(([label, value]) => (
+                      <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--color-border)' }}>
+                        <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>{label}</span>
+                        <strong style={{ fontSize: '14px' }}>{value}</strong>
+                      </div>
+                    ))}
+
+                    {/* KYC Status */}
+                    <div style={{ padding: '14px', background: 'var(--color-card-alt)', borderRadius: '10px', marginTop: '4px' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>KYC Status</div>
+                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+                          <span style={{ color: selectedUser.bvn_verified ? 'var(--color-primary)' : 'var(--color-text-muted)' }}>
+                            {selectedUser.bvn_verified ? '✓' : '✗'}
+                          </span>
+                          BVN Verified
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+                          <span style={{ color: selectedUser.bank_verified ? 'var(--color-primary)' : 'var(--color-text-muted)' }}>
+                            {selectedUser.bank_verified ? '✓' : '✗'}
+                          </span>
+                          Bank Account
+                        </div>
+                      </div>
+                      {selectedUser.account_name && (
+                        <div style={{ marginTop: '10px', fontSize: '13px', color: 'var(--color-text-secondary)' }}>
+                          Account: <strong>{selectedUser.account_name}</strong>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Account status */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+                      <span style={{ fontSize: '13px', color: selectedUser.is_active ? 'var(--color-primary)' : 'var(--color-danger)' }}>
+                        {selectedUser.is_active ? '● Active Account' : '● Suspended'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </>
         )}
 

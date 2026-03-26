@@ -1,10 +1,11 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import FarmCard from '../components/FarmCard';
 import SkeletonCard from '../components/SkeletonCard';
 import EmptyState from '../components/EmptyState';
+import api from '../utils/api';
 import { mockFarms, cropTypes, nigeriaStates } from '../data/mockData';
 
 let debounceTimer;
@@ -13,12 +14,40 @@ export default function FarmListingsPage() {
   const { user } = useAuth();
   const isFarmer = user?.role === 'farmer';
 
+  const [farms, setFarms] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [sort, setSort] = useState('latest');
-  const [filters, setFilters] = useState({ crops: [], state: '', status: '', returnType: '', fundingMin: 0, fundingMax: 100 });
+  const [sort, setSort] = useState('newest');
+  const [filters, setFilters] = useState({ crops: [], state: '', status: 'active', returnType: '', fundingMin: 0, fundingMax: 100 });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [page, setPage] = useState(1);
   const ITEMS_PER_PAGE = 6;
+
+  const fetchFarms = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/farms', {
+        params: {
+          farm_status: filters.status || 'active',
+          state: filters.state || undefined,
+          // crop_name: filters.crops.length === 1 ? filters.crops[0] : undefined // Simple one-crop filter for backend
+        }
+      });
+      if (res.data.success) {
+        setFarms(res.data.data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch farms:", err);
+      // Fallback to empty or mock if debugging
+      // setFarms(mockFarms); 
+    } finally {
+      setLoading(false);
+    }
+  }, [filters.status, filters.state]);
+
+  useEffect(() => {
+    fetchFarms();
+  }, [fetchFarms]);
 
   const handleSearch = useCallback((val) => {
     clearTimeout(debounceTimer);
@@ -31,32 +60,45 @@ export default function FarmListingsPage() {
   };
 
   const clearFilters = () => {
-    setFilters({ crops: [], state: '', status: '', returnType: '', fundingMin: 0, fundingMax: 100 });
+    setFilters({ crops: [], state: '', status: 'active', returnType: '', fundingMin: 0, fundingMax: 100 });
     setSearch('');
   };
 
   const filtered = useMemo(() => {
-    let farms = [...mockFarms];
+    let list = [...farms];
+    
+    // UI-side search
     if (search) {
       const q = search.toLowerCase();
-      farms = farms.filter(f =>
+      list = list.filter(f =>
         f.name.toLowerCase().includes(q) ||
-        f.crop.toLowerCase().includes(q) ||
-        f.location.state.toLowerCase().includes(q) ||
-        f.description.toLowerCase().includes(q)
+        f.crop_name?.toLowerCase().includes(q) ||
+        f.state?.toLowerCase().includes(q) ||
+        f.description?.toLowerCase().includes(q)
       );
     }
-    if (filters.crops.length) farms = farms.filter(f => filters.crops.includes(f.crop));
-    if (filters.state) farms = farms.filter(f => f.location.state === filters.state);
-    if (filters.status) farms = farms.filter(f => f.status === filters.status);
-    const pct = (f) => (f.raised / f.goal) * 100;
-    farms = farms.filter(f => pct(f) >= filters.fundingMin && pct(f) <= Math.max(filters.fundingMax, 100));
+    
+    // UI-side multi-crop filtering
+    if (filters.crops.length) {
+      list = list.filter(f => filters.crops.includes(f.crop_name || f.crop));
+    }
 
-    if (sort === 'most-funded') farms.sort((a, b) => (b.raised / b.goal) - (a.raised / a.goal));
-    else if (sort === 'ending-soon') farms.sort((a, b) => a.daysLeft - b.daysLeft);
+    // Funding range filtering (Backend handles total_budget/amount_raised)
+    const getPct = (f) => {
+        const raised = f.amount_raised !== undefined ? f.amount_raised : (f.raised || 0);
+        const goal = f.total_budget !== undefined ? f.total_budget : (f.goal || 1200000);
+        return (raised / goal) * 100;
+    };
+    list = list.filter(f => getPct(f) >= filters.fundingMin && getPct(f) <= Math.max(filters.fundingMax, 100));
 
-    return farms;
-  }, [search, filters, sort]);
+    // Sort
+    if (sort === 'funding') list.sort((a, b) => getPct(b) - getPct(a));
+    else if (sort === 'newest') list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    else if (sort === 'return') list.sort((a, b) => (b.return_rate || 0) - (a.return_rate || 0));
+    else if (sort === 'deadline') list.sort((a, b) => new Date(a.start_date || a.startDate) - new Date(b.start_date || b.startDate));
+
+    return list;
+  }, [farms, search, filters, sort]);
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
   const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
@@ -117,9 +159,10 @@ export default function FarmListingsPage() {
               />
             </div>
             <select className="form-input form-select listings-sort" value={sort} onChange={e => { setSort(e.target.value); setPage(1); }}>
-              <option value="latest">Latest</option>
-              <option value="most-funded">Most Funded</option>
-              <option value="ending-soon">Ending Soon</option>
+              <option value="newest">Newest</option>
+              <option value="funding">Funding %</option>
+              <option value="return">Return Rate</option>
+              <option value="deadline">Deadline</option>
             </select>
             <button className="btn btn-ghost btn-sm listings-filter-btn" onClick={() => setSidebarOpen(!sidebarOpen)}>
               {sidebarOpen ? 'Hide Filters' : 'Filters'}
@@ -128,7 +171,11 @@ export default function FarmListingsPage() {
 
           <p className="listings-count">{filtered.length} {filtered.length === 1 ? 'farm' : 'farms'} {search ? `matching "${search}"` : 'available'}</p>
 
-          {paginated.length === 0 ? (
+          {loading ? (
+            <div className="listings-grid">
+              {[1, 2, 3, 4, 5, 6].map(i => <SkeletonCard key={i} />)}
+            </div>
+          ) : paginated.length === 0 ? (
             <EmptyState
               title={`No farms match${search ? ` "${search}"` : ''}`}
               description="Try a different crop type, state, or clear your filters."

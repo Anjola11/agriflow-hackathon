@@ -9,6 +9,7 @@ from src.admin.schemas import (
     AdminMilestoneResponse,
     AdminMilestoneListResponse,
     AdminStatsResponse,
+    AdminUserListResponse,
     FarmRejectInput, 
     MilestoneRejectInput
 )
@@ -114,6 +115,19 @@ async def get_stats(
         "success": True,
         "message": "Platform statistics retrieved successfully",
         "data": stats
+    }
+
+@admin_router.get("/users", response_model=AdminUserListResponse, status_code=status.HTTP_200_OK)
+async def get_all_users(
+    session: AsyncSession = Depends(get_session),
+    admin = Depends(get_current_admin),
+    admin_services: AdminServices = Depends(get_admin_services)
+):
+    users = await admin_services.get_all_users(session)
+    return {
+        "success": True,
+        "message": "Users retrieved successfully",
+        "data": users
     }
 
 from pydantic import BaseModel

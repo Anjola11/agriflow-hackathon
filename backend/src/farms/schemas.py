@@ -41,11 +41,14 @@ class MilestoneOut(BaseModel):
     proofs: List[ProofOut] = []
 
 class FarmerPublicOut(BaseModel):
+    model_config = {"from_attributes": True}
     uid: uuid.UUID
     full_name: str
     trust_score: Optional[int] = None
     trust_tier: Optional[str] = None
     bvn_verified: bool
+    created_at: Optional[datetime] = None
+    farm_count: Optional[int] = None
 
 class FarmOut(BaseModel):
     model_config = {"from_attributes": True}

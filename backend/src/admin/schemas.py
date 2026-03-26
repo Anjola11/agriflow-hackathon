@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 import uuid
 from datetime import date, datetime
+from src.auth.models import Role
 from src.farms.schemas import MilestoneOut
 
 class FarmRejectInput(BaseModel):
@@ -25,6 +26,9 @@ class AdminFarmerOut(BaseModel):
     account_number: Optional[str] = None
     bank_code: Optional[str] = None
     account_name: Optional[str] = None
+    farm_count: Optional[int] = 0
+    is_active: Optional[bool] = True
+    created_at: Optional[datetime] = None
 
 class AdminFarmOut(BaseModel):
     model_config = {"from_attributes": True}
@@ -104,3 +108,21 @@ class AdminStatsResponse(BaseModel):
     success: bool
     message: str
     data: StatsOut
+
+class AdminUserOut(BaseModel):
+    model_config = {"from_attributes": True}
+    uid: uuid.UUID
+    full_name: str
+    email: str
+    role: str
+    bvn_verified: bool = False
+    bank_verified: bool = False
+    trust_tier: Optional[str] = None
+    is_active: bool = True
+    created_at: Optional[datetime] = None
+    farm_count: Optional[int] = 0
+
+class AdminUserListResponse(BaseModel):
+    success: bool
+    message: str
+    data: List[AdminUserOut]

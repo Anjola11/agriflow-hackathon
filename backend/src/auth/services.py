@@ -238,13 +238,13 @@ class AuthServices():
         response.delete_cookie(
             key="access_token",
             samesite="none" if Config.IS_PRODUCTION else "lax", 
-            secure=True,     
+            secure=Config.IS_PRODUCTION,     
             httponly=True    
         )
         response.delete_cookie(
             key="refresh_token",
             samesite="none" if Config.IS_PRODUCTION else "lax",
-            secure=True,
+            secure=Config.IS_PRODUCTION,
             httponly=True
         )
             
