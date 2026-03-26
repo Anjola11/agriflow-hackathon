@@ -189,6 +189,12 @@ class InvestmentServices:
         
         investments = []
         for inv, farm in rows:
+            # Fetch milestone stats
+            ms_result = await session.exec(select(Milestone).where(Milestone.farm_id == farm.id))
+            milestones = ms_result.all()
+            total_ms = len(milestones)
+            done_ms = len([m for m in milestones if m.status in [MilestoneStatus.VERIFIED, MilestoneStatus.DISBURSED]])
+            
             investments.append({
                 "id": str(inv.id),
                 "farmId": str(inv.farm_id),
@@ -199,6 +205,9 @@ class InvestmentServices:
                 "farm_status": farm.farm_status,
                 "expected_return": (inv.amount_kobo * (1 + farm.return_rate)) / 100,
                 "return_rate_pct": farm.return_rate * 100,
+                "milestonesTotal": total_ms,
+                "milestonesCurrent": done_ms,
+                "dividendType": "Fixed ROI", # Static for now
                 "created_at": inv.created_at
             })
             
