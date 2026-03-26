@@ -976,9 +976,54 @@ export default function InvestorDashboard() {
               </div>
               <div className="form-group" style={{ marginBottom: "20px" }}>
                 <label className="form-label">Email</label>
-                <input className="form-input" defaultValue={user?.email} />
+                <input className="form-input" defaultValue={user?.email} disabled />
               </div>
               <button className="btn btn-solid">Save Changes</button>
+            </div>
+
+            {/* Verification Status */}
+            <div
+              className="card"
+              style={{ padding: "24px", flex: "1 1 300px", maxWidth: "480px" }}
+            >
+              <h3 style={{ fontWeight: 600, marginBottom: "16px" }}>
+                Identity & Verification
+              </h3>
+              <p style={{ fontSize: "13px", color: "var(--color-text-secondary)", marginBottom: "20px", lineHeight: 1.5 }}>
+                Verify your identity to unlock higher investment limits and automated payouts.
+              </p>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: user?.bvn_verified ? 'rgba(16, 185, 129, 0.05)' : 'var(--color-surface)', borderRadius: '8px', border: user?.bvn_verified ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid var(--color-border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '18px' }}>🆔</span>
+                    <span style={{ fontSize: '14px', fontWeight: 500 }}>BVN Verification</span>
+                  </div>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: user?.bvn_verified ? 'var(--color-primary)' : 'var(--color-text-secondary)' }}>
+                    {user?.bvn_verified ? '✓ VERIFIED' : 'PENDING'}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: user?.bank_verified ? 'rgba(16, 185, 129, 0.05)' : 'var(--color-surface)', borderRadius: '8px', border: user?.bank_verified ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid var(--color-border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '18px' }}>🏦</span>
+                    <span style={{ fontSize: '14px', fontWeight: 500 }}>Bank Account</span>
+                  </div>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: user?.bank_verified ? 'var(--color-primary)' : 'var(--color-text-secondary)' }}>
+                    {user?.bank_verified ? '✓ VERIFIED' : 'PENDING'}
+                  </span>
+                </div>
+              </div>
+
+              {!kycComplete && (
+                <button 
+                  className="btn btn-solid btn-full" 
+                  style={{ background: 'var(--color-primary)' }}
+                  onClick={() => setIsKycOpen(true)}
+                >
+                  Complete Verification
+                </button>
+              )}
             </div>
 
             {/* Payout Details */}

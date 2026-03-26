@@ -290,7 +290,7 @@ export default function FarmDetailPage() {
         ...(raw.farmer || {}),
         name: (raw.farmer?.full_name) || (raw.farmer?.name) || 'Anonymous Farmer',
         memberSince: raw.farmer?.created_at ? new Date(raw.farmer.created_at).getFullYear() : '2024',
-        totalFarms: raw.farmer?.farms_count || 1,
+        totalFarms: raw.farmer?.farm_count || 1,
         bio: raw.farmer?.bio || 'AgriFlow Partner passionate about sustainable agriculture.',
         state: raw.farmer?.state || raw.state || 'Ondo',
         trustScore: raw.farmer?.trust_score ?? 0,
@@ -299,6 +299,7 @@ export default function FarmDetailPage() {
     } else {
       f.farmer = { name: 'Anonymous Farmer', state: f.state || 'Ondo', memberSince: '2024', totalFarms: 1, bio: 'AgriFlow Partner', trustScore: 0, trustTier: 'unrated' };
     }
+
     f.location = f.location || { state: f.state || 'N/A', lga: f.lga || 'N/A' };
     f.photos = f.full_display_picture_url || f.listing_display_picture_url || f.photos || ['/placeholder-farm.jpg'];
     f.transparencyScore = f.transparencyScore || { budgetDisclosed: true, proofsUploaded: !!(f.milestones?.some(m => m.proofs?.length)), adminVerified: f.farm_status === 'active' || f.farm_status === 'funded', yieldReported: false };
@@ -597,12 +598,12 @@ export default function FarmDetailPage() {
                     </div>
                   ) : null}
                   <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    {isInvested ? `Based on your investment of ₦${investment.invested.toLocaleString()}` : 'If you invest ₦50,000'}
+                    {isInvested ? `Based on your investment of ₦${(investment.amount || 0).toLocaleString()}` : 'If you invest ₦50,000'}
                   </p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     
                     {(() => {
-                      const calcAmount = isInvested ? investment.invested : 50000;
+                      const calcAmount = isInvested ? (investment.amount || 50000) : 50000;
                       const expectedReturn = calcAmount * (1 + farm.return_rate);
                       const consReturn = calcAmount * (1 + (Math.max(farm.return_rate * 100 - 5, 5))/100);
                       const optReturn = calcAmount * (1 + (farm.return_rate * 100 + Math.min(6, (farm.return_rate * 100)/2))/100);

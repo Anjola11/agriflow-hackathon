@@ -113,6 +113,12 @@ class Farm(SQLModel, table=True):
         back_populates="farm",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"}
     )
+    
+    @computed_field
+    @property
+    def farmer(self) -> Optional["User"]:
+        return self.owner
+
 
     @computed_field
     @property

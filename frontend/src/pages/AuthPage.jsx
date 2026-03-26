@@ -7,7 +7,7 @@ import { useToast } from '../context/ToastContext';
 export default function AuthPage() {
   const [searchParams] = useSearchParams();
   const [tab, setTab] = useState(searchParams.get('tab') === 'signup' ? 'signup' : 'login');
-  const [role, setRole] = useState('');
+  const [role, setRole] = useState(searchParams.get('role') || '');
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const { login, signup, demoLogin } = useAuth();
@@ -18,8 +18,10 @@ export default function AuthPage() {
 
   useEffect(() => {
     reset();
-    setRole('');
-  }, [tab, reset]);
+    if (!searchParams.get('role')) {
+      setRole('');
+    }
+  }, [tab, reset, searchParams]);
 
   const [isDemo, setIsDemo] = useState(false); // Changed to false because backend is now active
 
@@ -212,8 +214,8 @@ export default function AuthPage() {
           <div className="auth-demo">
             <p className="auth-demo-label">Quick demo access:</p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-              <button type="button" className="btn btn-solid btn-sm" style={{ background: 'var(--color-primary)', color: '#fff' }} onClick={() => fillAndSubmit('farmer1@agriflow.ng', 'Farmer123!', 'farmer')}>Farmer View</button>
-              <button type="button" className="btn btn-solid btn-sm" style={{ background: 'var(--color-primary)', color: '#fff' }} onClick={() => fillAndSubmit('investor1@agriflow.ng', 'Invest123!', 'investor')}>Investor View</button>
+              <button type="button" className="btn btn-solid btn-sm" style={{ background: 'var(--color-primary)', color: '#fff' }} onClick={() => fillAndSubmit('farmer01@agriflow.com', 'Farmer123!', 'farmer')}>Farmer View</button>
+              <button type="button" className="btn btn-solid btn-sm" style={{ background: 'var(--color-primary)', color: '#fff' }} onClick={() => fillAndSubmit('test@email.com', 'Test1234!', 'investor')}>Investor View</button>
             </div>
             <button type="button" className="btn btn-ghost btn-sm" style={{ width: '100%', marginTop: '16px', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }} onClick={() => navigate('/admin/login?demo=true')}>Admin View</button>
           </div>

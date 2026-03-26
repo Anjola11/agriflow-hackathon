@@ -74,6 +74,11 @@ class User(SQLModel, table=True):
     def full_name(self) -> str:
         return f"{self.first_name} {self.last_name}"
     
+    @property
+    def farm_count(self) -> int:
+        return len(self.farms) if self.farms else 0
+
+    
     @computed_field
     @property
     def trust_tier(self) -> str | None:

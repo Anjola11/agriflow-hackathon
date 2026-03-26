@@ -598,7 +598,7 @@ function MilestonesTab() {
           <div key={farm.id}>
             <div style={{display:'flex', alignItems:'center', gap:'10px', marginBottom:'16px'}}>
               <div style={{width:'32px', height:'32px', borderRadius:'8px', background:'var(--color-primary)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, fontSize:'14px'}}>
-                {farm.crop_name[0]}
+                {(farm.crop_name || 'F')[0]}
               </div>
               <div>
                 <h2 style={{fontSize:'18px', fontWeight:700}}>{farm.name}</h2>
@@ -607,7 +607,7 @@ function MilestonesTab() {
             </div>
 
             <div style={{display:'flex',flexDirection:'column',gap:'14px'}}>
-              {farm.milestones.map(m => (
+              {(farm.milestones || []).map(m => (
                 <div key={m.id} className="card" style={{padding:'20px'}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'12px'}}>
                     <div>
@@ -968,24 +968,81 @@ export default function FarmerDashboard() {
               <div className="card" style={{padding:'24px',flex: '1 1 300px',maxWidth:'480px',display:'flex',flexDirection:'column',gap:'16px'}}>
                 <h3 style={{ fontWeight: 600, marginBottom: '8px' }}>Account Information</h3>
                 <div className="form-group"><label className="form-label">Full Name</label><input className="form-input" defaultValue={user?.name}/></div>
-                <div className="form-group"><label className="form-label">Email</label><input className="form-input" defaultValue={user?.email}/></div>
+                <div className="form-group"><label className="form-label">Email</label><input className="form-input" defaultValue={user?.email} disabled /></div>
                 <div className="form-group"><label className="form-label">Short Bio</label><textarea className="form-input form-textarea" rows={3} placeholder="Tell investors about your farming experience…"/></div>
                 <button className="btn btn-solid">Save Changes</button>
               </div>
 
+              {/* Verification Status */}
+              <div
+                className="card"
+                style={{ padding: "24px", flex: "1 1 300px", maxWidth: "480px" }}
+              >
+                <h3 style={{ fontWeight: 600, marginBottom: "16px" }}>
+                  Trust & Verification
+                </h3>
+                <p style={{ fontSize: "13px", color: "var(--color-text-secondary)", marginBottom: "20px", lineHeight: 1.5 }}>
+                  Complete your verification to build trust with investors and unlock full platform capabilities.
+                </p>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: user?.bvn_verified ? 'rgba(16, 185, 129, 0.05)' : 'var(--color-surface)', borderRadius: '8px', border: user?.bvn_verified ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid var(--color-border)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '18px' }}>🆔</span>
+                      <span style={{ fontSize: '14px', fontWeight: 500 }}>BVN Verification</span>
+                    </div>
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: user?.bvn_verified ? 'var(--color-primary)' : 'var(--color-text-secondary)' }}>
+                      {user?.bvn_verified ? '✓ VERIFIED' : 'PENDING'}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: user?.bank_verified ? 'rgba(16, 185, 129, 0.05)' : 'var(--color-surface)', borderRadius: '8px', border: user?.bank_verified ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid var(--color-border)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '18px' }}>🏦</span>
+                      <span style={{ fontSize: '14px', fontWeight: 500 }}>Bank Account</span>
+                    </div>
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: user?.bank_verified ? 'var(--color-primary)' : 'var(--color-text-secondary)' }}>
+                      {user?.bank_verified ? '✓ VERIFIED' : 'PENDING'}
+                    </span>
+                  </div>
+                </div>
+
+                {!kycComplete && (
+                  <button 
+                    className="btn btn-solid btn-full" 
+                    style={{ background: 'var(--color-primary)' }}
+                    onClick={() => setIsKycOpen(true)}
+                  >
+                    Complete Verification
+                  </button>
+                )}
+                
+                {user?.trust_score !== undefined && (
+                  <div style={{ marginTop: '16px', borderTop: '1px solid var(--color-border)', paddingTop: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>Current Trust Score:</span>
+                      <span style={{ fontWeight: 700, color: 'var(--color-primary)' }}>{user.trust_score}/100</span>
+                    </div>
+                    <div className="progress-track" style={{ height: '6px' }}>
+                      <div className="progress-fill" style={{ width: `${user.trust_score}%` }}></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+                
               {/* Payout Details */}
-              <div className="card" style={{ padding: '24px', flex: '1 1 320px', maxWidth: '600px' }}>
-                <h3 style={{ fontWeight: 600, marginBottom: '12px' }}>Payout Details</h3>
-                <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: '20px', lineHeight: 1.5 }}>Where should we send your proceeds when your harvest is sold? Account name must match your BVN.</p>
+              <div className="card" style={{ padding: "24px", flex: "1 1 320px", maxWidth: "600px" }}>
+                <h3 style={{ fontWeight: 600, marginBottom: "12px" }}>Payout Details</h3>
+                <p style={{ fontSize: "13px", color: "var(--color-text-secondary)", marginBottom: "20px", lineHeight: 1.5 }}>Where should we send your proceeds when your harvest is sold? Account name must match your BVN.</p>
                 
                 {detailsSaved ? (
-                  <div style={{ padding: '16px', backgroundColor: 'var(--color-primary-light)', color: 'var(--color-primary-dark)', borderRadius: '8px', marginBottom: '20px', fontSize: '14px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ width: '20px', height: '20px', backgroundColor: 'var(--color-primary)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyCenter: 'center', color: '#fff', fontSize: '12px' }}>✓</div> Your details are saved. You'll receive payouts here.
+                  <div style={{ padding: "16px", backgroundColor: "var(--color-primary-light)", color: "var(--color-primary-dark)", borderRadius: "8px", marginBottom: "20px", fontSize: "14px", fontWeight: 500, display: "flex", alignItems: "center", gap: "12px" }}>
+                    <div style={{ width: "20px", height: "20px", backgroundColor: "var(--color-primary)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "12px" }}>✓</div> Your details are saved. You'll receive payouts here.
                   </div>
                 ) : null}
                 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-                  <div className="form-group" style={{ gridColumn: '1 / -1' }}><label className="form-label">Account Name (Must match BVN)</label><input className="form-input" value={payoutDetails.accountName} onChange={e => setPayoutDetails({...payoutDetails, accountName: e.target.value})} placeholder="e.g. Adewale Farming Co." /></div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
+                  <div className="form-group" style={{ gridColumn: "1 / -1" }}><label className="form-label">Account Name (Must match BVN)</label><input className="form-input" value={payoutDetails.accountName} onChange={e => setPayoutDetails({...payoutDetails, accountName: e.target.value})} placeholder="e.g. Adewale Farming Co." /></div>
                   <div className="form-group"><label className="form-label">Bank Name</label>
                     <select className="form-select form-input" value={payoutDetails.bankName} onChange={e => setPayoutDetails({...payoutDetails, bankName: e.target.value})}>
                       <option value="">Select Bank...</option>
@@ -998,7 +1055,7 @@ export default function FarmerDashboard() {
                   <div className="form-group"><label className="form-label">Account Number</label><input className="form-input text-mono" maxLength={10} value={payoutDetails.accountNumber} onChange={e => setPayoutDetails({...payoutDetails, accountNumber: e.target.value})} placeholder="0123456789" /></div>
                 </div>
                 
-                <button className="btn btn-solid" style={{ width: '100%', marginTop: '16px' }} onClick={() => setDetailsSaved(true)} disabled={detailsSaved || !payoutDetails.accountName || !payoutDetails.accountNumber}>Save Payout Details</button>
+                <button className="btn btn-solid" style={{ width: "100%", marginTop: "16px" }} onClick={() => setDetailsSaved(true)} disabled={detailsSaved || !payoutDetails.accountName || !payoutDetails.accountNumber}>Save Payout Details</button>
               </div>
             </div>
           </div>

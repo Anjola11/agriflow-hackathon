@@ -12,6 +12,7 @@ from sqlalchemy.exc import DatabaseError
 from src.utils.logger import logger
 from typing import List
 from sqlalchemy.orm import selectinload
+from src.auth.models import User
 
 class FarmServices:
 
@@ -201,7 +202,7 @@ class FarmServices:
         
         statement = select(Farm).where(Farm.id == farm_id).options(
             selectinload(Farm.milestones).selectinload(Milestone.proofs),
-            selectinload(Farm.owner)
+            selectinload(Farm.owner).selectinload(User.farms)
         )
         result = await session.exec(statement)
         farm = result.first()
@@ -214,7 +215,7 @@ class FarmServices:
     
     async def get_farms(self, session: AsyncSession, crop_name: str = None, state: str = None, farm_status: str = "active"):
         statement = select(Farm).where(Farm.farm_status == farm_status).options(
-            selectinload(Farm.owner)
+            selectinload(Farm.owner).selectinload(User.farms)
         )
         if crop_name:
             statement = statement.where(Farm.crop_name == crop_name)
@@ -227,7 +228,7 @@ class FarmServices:
 
     async def get_farmer_farms(self, farmer_id: uuid.UUID, session: AsyncSession):
         statement = select(Farm).where(Farm.farmer_id == farmer_id).order_by(Farm.created_at.desc()).options(
-            selectinload(Farm.owner),
+            selectinload(Farm.owner).selectinload(User.farms),
             selectinload(Farm.milestones)
         )
         result = await session.exec(statement)

@@ -4,15 +4,30 @@ import gsap from 'gsap';
 
 export default function FarmCard({ farm }) {
   const cardRef = useRef(null);
-  const percentFunded = Math.min(100, Math.round((farm.raised / farm.goal) * 100));
-  const formatCurrency = (n) => `₦${(n / 1000).toFixed(0)}k`;
+  
+  // Real data use amount_raised/total_budget; Mock uses raised/goal
+  const raised = farm.amount_raised !== undefined ? farm.amount_raised : (farm.raised || 0);
+  const goal = farm.total_budget !== undefined ? farm.total_budget : (farm.goal || 1200000);
+  const percentFunded = Math.min(100, Math.round((raised / goal) * 100));
+  
+  const formatCurrency = (n) => `₦${(n / 1000).toLocaleString(undefined, { maximumFractionDigits: 0 })}k`;
 
-  const getTrustBadge = (score) => {
-    if (score >= 75) return { label: '✓ Verified Farmer', color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)' };
-    if (score >= 50) return { label: '◑ Emerging Farmer', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)' };
-    return { label: '○ Unrated', color: 'var(--color-text-secondary)', bg: 'var(--color-card-alt)' };
+  const getTrustBadge = (tier) => {
+    const t = (tier || '').toLowerCase();
+    if (t === 'verified') return { label: 'Verified Farmer', color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)' };
+    if (t === 'emerging') return { label: 'Emerging Farmer', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)' };
+    return { label: 'Unrated', color: 'var(--color-text-secondary)', bg: 'var(--color-card-alt)' };
   };
-  const trustBadge = getTrustBadge(farm.farmer.trustScore || 0);
+
+  const farmer = farm.farmer || farm.owner || {};
+  const trustBadge = getTrustBadge(farmer.trust_tier || farmer.trustTier);
+  const farmerName = farmer.full_name || farmer.name || 'Unknown Farmer';
+  const displayPhoto = (farm.listing_display_picture_url && farm.listing_display_picture_url[0]) || (farm.photos && farm.photos[0]) || '/placeholder-farm.jpg';
+  const cropName = farm.crop_name || farm.cropTag || 'Crop';
+  const stateName = farm.state || (farm.location && farm.location.state) || 'Nigeria';
+  
+  const startDate = new Date(farm.start_date || farm.startDate);
+  const daysLeft = Math.max(0, Math.ceil((startDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)));
 
   useEffect(() => {
     const card = cardRef.current;
@@ -27,13 +42,13 @@ export default function FarmCard({ farm }) {
   return (
     <div ref={cardRef} className="farm-card">
       <div className="farm-card-photo">
-        <img src={farm.photos[0]} alt={farm.name} loading="lazy" />
+        <img src={displayPhoto} alt={farm.name} loading="lazy" />
       </div>
       <div className="farm-card-body">
-        <span className="badge badge-active farm-card-crop">{farm.cropTag}</span>
+        <span className="badge badge-active farm-card-crop">{cropName}</span>
         <h3 className="farm-card-name">{farm.name}</h3>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <p className="farm-card-meta">{farm.farmer.firstName} · {farm.location.state}</p>
+          <p className="farm-card-meta">{farmerName.split(' ')[0]} · {stateName}</p>
           <span style={{ fontSize: '11px', fontWeight: 600, padding: '4px 8px', borderRadius: '4px', color: trustBadge.color, background: trustBadge.bg, letterSpacing: '0.2px' }}>
             {trustBadge.label}
           </span>
@@ -45,15 +60,21 @@ export default function FarmCard({ farm }) {
           </div>
           <div className="farm-card-progress-row">
             <span className="text-mono" style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>
-              {formatCurrency(farm.raised)} raised of {formatCurrency(farm.goal)}
+              {formatCurrency(raised)} raised of {formatCurrency(goal)}
             </span>
             <span className="text-mono farm-card-percent">{percentFunded}%</span>
           </div>
         </div>
 
         <div className="farm-card-stats">
-          <span>Yield: <strong>{farm.expectedYield} {farm.yieldUnit}</strong></span>
-          <span>{farm.daysLeft > 0 ? `Closes: ${new Date(farm.closingDate).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })}` : 'Fully Funded'}</span>
+          <span>Target Yield: <strong>{farm.expected_yield || farm.expectedYield || '—'} {farm.yieldUnit || (farm.crop_name === 'Poultry' ? 'birds' : 'tons')}</strong></span>
+          <span style={{ 
+            color: daysLeft <= 7 ? '#f59e0b' : 'var(--color-text-secondary)', 
+            fontWeight: daysLeft <= 7 ? 700 : 500,
+            fontSize: '12px'
+          }}>
+             {daysLeft > 0 ? `${daysLeft} days left` : 'Funding Closed'}
+          </span>
         </div>
 
         <Link to={`/farms/${farm.id}`} className="farm-card-cta">View Farm →</Link>

@@ -194,6 +194,26 @@ class AdminServices:
             "total_funds_raised": (total_funds_raised_kobo.one() or 0) / 100
         }
 
+    async def get_all_users(self, session: AsyncSession) -> List[dict]:
+        """Returns all platform users with their farm counts."""
+        statement = select(User).order_by(User.created_at.desc())
+        result = await session.exec(statement)
+        users = result.all()
+
+        # Get farm counts per user in one query
+        farm_count_stmt = select(Farm.farmer_id, func.count(Farm.id).label("count")).group_by(Farm.farmer_id)
+        farm_count_result = await session.exec(farm_count_stmt)
+        farm_counts = {row[0]: row[1] for row in farm_count_result.all()}
+
+        return [
+            {
+                **user.model_dump(),
+                "farm_count": farm_counts.get(user.uid, 0),
+            }
+            for user in users
+        ]
+
+
 from src.harvest.models import HarvestReport, HarvestReportStatus
 from src.payouts.models import Payout, PayoutStatus, RecipientType
 from src.investments.models import Investment, InvestmentStatus
