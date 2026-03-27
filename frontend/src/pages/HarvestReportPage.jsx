@@ -8,6 +8,89 @@ import { mockFarmerFarms } from '../data/mockData';
 import { useNavigate } from 'react-router-dom';
 import Icon from '../components/Icon';
 
+const PAYMENT_EVIDENCE_LIMIT_MB = 5;
+
+const mbToBytes = (mb) => mb * 1024 * 1024;
+
+const loadImageFromFile = (file) => new Promise((resolve, reject) => {
+  const objectUrl = URL.createObjectURL(file);
+  const img = new Image();
+
+  img.onload = () => {
+    URL.revokeObjectURL(objectUrl);
+    resolve(img);
+  };
+
+  img.onerror = () => {
+    URL.revokeObjectURL(objectUrl);
+    reject(new Error('Unable to load image'));
+  };
+
+  img.src = objectUrl;
+});
+
+const canvasToBlob = (canvas, quality) => new Promise((resolve, reject) => {
+  canvas.toBlob(
+    (blob) => {
+      if (!blob) {
+        reject(new Error('Image compression failed'));
+        return;
+      }
+      resolve(blob);
+    },
+    'image/jpeg',
+    quality
+  );
+});
+
+async function compressImageIfNeeded(file, maxSizeMB) {
+  const maxSizeBytes = mbToBytes(maxSizeMB);
+  if (!file?.type?.startsWith('image/') || file.size <= maxSizeBytes) {
+    return file;
+  }
+
+  const image = await loadImageFromFile(file);
+  let width = image.width;
+  let height = image.height;
+  const maxDimension = 1920;
+
+  if (Math.max(width, height) > maxDimension) {
+    const scale = maxDimension / Math.max(width, height);
+    width = Math.round(width * scale);
+    height = Math.round(height * scale);
+  }
+
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return file;
+
+  canvas.width = width;
+  canvas.height = height;
+  ctx.drawImage(image, 0, 0, width, height);
+
+  let quality = 0.85;
+  let blob = await canvasToBlob(canvas, quality);
+
+  while (blob.size > maxSizeBytes && quality > 0.45) {
+    quality -= 0.1;
+    blob = await canvasToBlob(canvas, quality);
+  }
+
+  if (blob.size > maxSizeBytes) {
+    canvas.width = Math.round(width * 0.85);
+    canvas.height = Math.round(height * 0.85);
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    blob = await canvasToBlob(canvas, Math.max(quality, 0.5));
+  }
+
+  if (blob.size > maxSizeBytes) {
+    return file;
+  }
+
+  const originalName = file.name.replace(/\.[^.]+$/, '');
+  return new File([blob], `${originalName}.jpg`, { type: 'image/jpeg' });
+}
+
 const navItems = [
   { key: 'farms', label: 'My Farms', icon: 'farms' },
   { key: 'add', label: 'Add Farm', icon: 'add' },
@@ -29,7 +112,28 @@ export default function HarvestReportPage() {
   const farms = user?.isNewUser ? [] : mockFarmerFarms;
   const expected = 4.2;
   const v = ay ? (((parseFloat(ay) - expected) / expected) * 100).toFixed(1) : null;
-  const { getRootProps, getInputProps } = useDropzone({ maxFiles: 1, onDrop: files => setEvidence(files[0]) });
+  const { getRootProps, getInputProps } = useDropzone({
+    maxFiles: 1,
+    accept: { 'image/*': [] },
+    onDrop: async (files) => {
+      const file = files?.[0];
+      if (!file) return;
+
+      try {
+        const processed = await compressImageIfNeeded(file, PAYMENT_EVIDENCE_LIMIT_MB);
+        if (processed.size > mbToBytes(PAYMENT_EVIDENCE_LIMIT_MB)) {
+          addToast(`Evidence image must be ${PAYMENT_EVIDENCE_LIMIT_MB}MB or less`, 'error');
+          return;
+        }
+        setEvidence(processed);
+      } catch {
+        addToast('Could not optimize image. Please try another file.', 'error');
+      }
+    },
+    onDropRejected: () => {
+      addToast('Please upload a valid image file only.', 'error');
+    }
+  });
 
   const handleTabChange = (k) => {
     navigate(`/farmer/dashboard?tab=${k}`);
@@ -117,7 +221,7 @@ export default function HarvestReportPage() {
                 </span>
               )}
             </div>
-            <p style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '6px' }}>Required to verify harvest proceeds before investor payout.</p>
+            <p style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '6px' }}>Required to verify harvest proceeds before investor payout. Max size: {PAYMENT_EVIDENCE_LIMIT_MB}MB.</p>
           </div>
 
           {v !== null && selectedFarm && (

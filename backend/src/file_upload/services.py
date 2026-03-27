@@ -14,10 +14,10 @@ class ImageCategory(str, Enum):
     PAYMENT_PHOTO = "payment_photo"
     
 
-max_display_photo_upload_bytes = 5 
-max_location_photo_upload_bytes = 3 
-max_milestone_photo_upload_bytes = 3 
-max_payment_photo_upload_bytes = 3 
+max_display_photo_upload_bytes = 8
+max_location_photo_upload_bytes = 5
+max_milestone_photo_upload_bytes = 5
+max_payment_photo_upload_bytes = 5
 
 
 
