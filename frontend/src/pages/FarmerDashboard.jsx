@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/auth-context';
 import { useToast } from '../context/ToastContext';
 import api from '../utils/api';
 import KYCModal from '../components/KYCModal';
@@ -811,9 +811,12 @@ function ProofUpload({ milestone, onSuccess }) {
 
 function MilestonesTab() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const initialFarmId = searchParams.get('farmId');
   const [farms, setFarms] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedFarmId, setSelectedFarmId] = useState(searchParams.get('farmId'));
+  const [selectedFarmId, setSelectedFarmId] = useState(
+    initialFarmId && initialFarmId !== 'null' && initialFarmId !== 'undefined' ? initialFarmId : null
+  );
   const [milestones, setMilestones] = useState([]);
   const [fetchingMilestones, setFetchingMilestones] = useState(false);
   const { addToast } = useToast();
@@ -854,7 +857,7 @@ function MilestonesTab() {
     const interval = setInterval(() => {
       // SILENT REFRESH: Only poll if the tab is visible and we ARE NOT currently uploading a proof
       // We check for any active upload state in the document if possible, or just the tab focus.
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && selectedFarmId) {
         api.get(`/farms/${selectedFarmId}`).then(res => {
           setMilestones(res.data.data.milestones || []);
         }).catch(() => {}); // Fail silently in background
@@ -2135,7 +2138,7 @@ export default function FarmerDashboard() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     <div style={{ padding: '16px', background: 'var(--color-surface)', borderRadius: '12px', border: '1px solid var(--color-border)' }}>
                        <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', textTransform: 'uppercase', marginBottom: '4px', fontWeight: 600 }}>Bank Name</div>
-                       <div style={{ fontWeight: 600 }}>{banks.find(b => b.code === user.bank_code)?.name || user.bank_code || 'Verified Bank'}</div>
+                       <div style={{ fontWeight: 600 }}>{banks.find(b => b.code === user.bank_code)?.name || 'Verified Bank'}</div>
                     </div>
                     
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>

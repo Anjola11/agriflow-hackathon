@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/auth-context';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import FarmCard from '../components/FarmCard';
@@ -7,7 +7,7 @@ import SkeletonCard from '../components/SkeletonCard';
 import EmptyState from '../components/EmptyState';
 import api from '../utils/api';
 import SEO from '../components/SEO';
-import { mockFarms, cropTypes, nigeriaStates } from '../data/mockData';
+import { cropTypes, nigeriaStates } from '../data/mockData';
 
 let debounceTimer;
 

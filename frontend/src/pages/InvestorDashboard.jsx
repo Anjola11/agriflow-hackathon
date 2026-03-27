@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/auth-context";
 import KYCModal from "../components/KYCModal";
 import api from "../utils/api";
 import EmptyState from "../components/EmptyState";
@@ -1164,7 +1164,7 @@ export default function InvestorDashboard() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <div style={{ padding: '16px', background: 'var(--color-surface)', borderRadius: '12px', border: '1px solid var(--color-border)' }}>
                      <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', textTransform: 'uppercase', marginBottom: '4px', fontWeight: 600 }}>Bank Name</div>
-                     <div style={{ fontWeight: 600 }}>{banks.find(b => b.code === user.bank_code)?.name || user.bank_code || 'Verified Bank'}</div>
+                     <div style={{ fontWeight: 600 }}>{banks.find(b => b.code === user.bank_code)?.name || 'Verified Bank'}</div>
                   </div>
                   
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>

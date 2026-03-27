@@ -7,7 +7,7 @@ import Footer from '../components/Footer';
 import Modal from '../components/Modal';
 import CurrencyInput from '../components/CurrencyInput';
 import DashboardLayout from '../components/DashboardLayout';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/auth-context';
 import { useToast } from '../context/ToastContext';
 import { mockFarms, mockInvestorPortfolio } from '../data/mockData';
 import api from '../utils/api';
