@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import { useAuth } from '../context/AuthContext';
@@ -221,6 +221,7 @@ function FarmCreationForm({ onDone, continueFarm = null }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { addToast } = useToast();
   const { user } = useAuth();
+  const initializedDraftIdRef = useRef(null);
   const kycComplete = user?.bvn_verified && user?.bank_verified;
   const steps = ['Details','Budget','Timeline','Review', 'Upload'];
   const u = (k,v) => setData(p=>({...p,[k]:v}));
@@ -248,7 +249,7 @@ function FarmCreationForm({ onDone, continueFarm = null }) {
       const rejectedCount = files.length - acceptedPhotos.length;
 
       if (acceptedPhotos.length) {
-        u('photos', [...data.photos, ...acceptedPhotos]);
+        setData((prev) => ({ ...prev, photos: [...prev.photos, ...acceptedPhotos] }));
       }
 
       if (rejectedCount > 0) {
@@ -276,7 +277,14 @@ function FarmCreationForm({ onDone, continueFarm = null }) {
   }, []);
 
   useEffect(() => {
-    if (!continueFarm) return;
+    if (!continueFarm) {
+      initializedDraftIdRef.current = null;
+      return;
+    }
+
+    if (initializedDraftIdRef.current === continueFarm.id) {
+      return;
+    }
 
     setData((prev) => ({
       ...prev,
@@ -297,6 +305,7 @@ function FarmCreationForm({ onDone, continueFarm = null }) {
       locationPhoto: null,
     }));
     setStep(5);
+    initializedDraftIdRef.current = continueFarm.id;
   }, [continueFarm]);
 
   const selectedCropObj = crops.find(c => c.name === data.crop);
