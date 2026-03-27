@@ -10,8 +10,25 @@ const api = axios.create({
 });
 
 const PUBLIC_PAGES = ['/auth', '/agriflow-controls-5592/login', '/', '/farms'];
+const AUTH_BYPASS_ENDPOINTS = ['/auth/login', '/auth/signup', '/auth/admin/login', '/auth/renew-access-token'];
 let isRefreshing = false;
 let failedQueue = [];
+let hasRefreshFailed = false;
+let hasForcedRedirect = false;
+
+const shouldBypassAuthRefresh = (url = '') => {
+  return AUTH_BYPASS_ENDPOINTS.some((endpoint) => url.includes(endpoint));
+};
+
+const isPublicPage = () => {
+  return PUBLIC_PAGES.includes(window.location.pathname);
+};
+
+const redirectToAuthOnce = () => {
+  if (hasForcedRedirect || isPublicPage()) return;
+  hasForcedRedirect = true;
+  window.location.assign('/auth');
+};
 
 const processQueue = (error, token = null) => {
   failedQueue.forEach(prom => {
@@ -25,17 +42,39 @@ const processQueue = (error, token = null) => {
 };
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const requestUrl = response?.config?.url || '';
+
+    // Successful auth lifecycle calls mean session recovery worked.
+    if (shouldBypassAuthRefresh(requestUrl)) {
+      hasRefreshFailed = false;
+      hasForcedRedirect = false;
+    }
+
+    return response;
+  },
   async (error) => {
-    const originalRequest = error.config;
+    const originalRequest = error?.config || {};
+    const requestUrl = originalRequest?.url || '';
 
     // If 401 and we haven't already tried retrying this exact request
     if (error.response?.status === 401 && !originalRequest._retry) {
+      // Session is known to be expired/revoked. Stop retrying refresh globally.
+      if (hasRefreshFailed) {
+        redirectToAuthOnce();
+        return Promise.reject(error);
+      }
+
       // Avoid looping if the renew endpoint itself fails with 401
-      if (originalRequest.url.includes('/auth/renew-access-token')) {
-        if (!PUBLIC_PAGES.includes(window.location.pathname)) {
-          window.location.href = '/auth';
-        }
+      if (requestUrl.includes('/auth/renew-access-token')) {
+        hasRefreshFailed = true;
+        processQueue(error, null);
+        redirectToAuthOnce();
+        return Promise.reject(error);
+      }
+
+      // Login/signup endpoints should return their own errors directly.
+      if (shouldBypassAuthRefresh(requestUrl)) {
         return Promise.reject(error);
       }
 
@@ -57,15 +96,14 @@ api.interceptors.response.use(
       try {
         await api.post('/auth/renew-access-token');
         isRefreshing = false;
+        hasRefreshFailed = false;
         processQueue(null);
         return api(originalRequest);
       } catch (err) {
         processQueue(err, null);
         isRefreshing = false;
-        // Broadcast an event or just redirect
-        if (!PUBLIC_PAGES.includes(window.location.pathname)) {
-          window.location.href = '/auth';
-        }
+        hasRefreshFailed = true;
+        redirectToAuthOnce();
         return Promise.reject(err);
       }
     }

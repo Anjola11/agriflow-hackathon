@@ -560,6 +560,7 @@ export default function FarmDetailPage() {
   const amountRaised = farm.amount_raised;
   const totalBudget = farm.total_budget;
   const progress = Math.min((amountRaised / totalBudget) * 100, 100);
+  const investment = userInvestments.find((inv) => String(inv.farm_id || inv.farmId) === String(id)) || null;
 
 
 
@@ -783,12 +784,12 @@ export default function FarmDetailPage() {
                       </div>
                     ) : null}
                     <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      {isInvested ? `Based on your investment of ₦${(investment.amount || 0).toLocaleString()}` : 'If you invest ₦50,000'}
+                      {isInvested ? `Based on your investment of ₦${(investment?.amount || 0).toLocaleString()}` : 'If you invest ₦50,000'}
                     </p>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                       
                       {(() => {
-                        const calcAmount = isInvested ? (investment.amount || 50000) : 50000;
+                        const calcAmount = isInvested ? (investment?.amount || 50000) : 50000;
                         const expectedReturn = calcAmount * (1 + farm.return_rate);
                         const consReturn = calcAmount * (1 + (Math.max(farm.return_rate * 100 - 5, 5))/100);
                         const optReturn = calcAmount * (1 + (farm.return_rate * 100 + Math.min(6, (farm.return_rate * 100)/2))/100);
