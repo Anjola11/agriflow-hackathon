@@ -16,12 +16,98 @@ import Icon from '../components/Icon';
 import { formatCurrency } from '../utils/format';
 
 const FILE_LIMITS_MB = {
-  DISPLAY_PHOTO: 5,
-  LOCATION_PHOTO: 3,
-  MILESTONE_PHOTO: 3,
+  DISPLAY_PHOTO: 8,
+  LOCATION_PHOTO: 5,
+  MILESTONE_PHOTO: 5,
+  PAYMENT_PHOTO: 5,
 };
 
 const mbToBytes = (mb) => mb * 1024 * 1024;
+
+const isImageFile = (file) => Boolean(file?.type?.startsWith('image/'));
+
+const loadImageFromFile = (file) => new Promise((resolve, reject) => {
+  const objectUrl = URL.createObjectURL(file);
+  const img = new Image();
+
+  img.onload = () => {
+    URL.revokeObjectURL(objectUrl);
+    resolve(img);
+  };
+
+  img.onerror = () => {
+    URL.revokeObjectURL(objectUrl);
+    reject(new Error('Unable to load image'));
+  };
+
+  img.src = objectUrl;
+});
+
+const canvasToBlob = (canvas, quality) => new Promise((resolve, reject) => {
+  canvas.toBlob(
+    (blob) => {
+      if (!blob) {
+        reject(new Error('Image compression failed'));
+        return;
+      }
+      resolve(blob);
+    },
+    'image/jpeg',
+    quality
+  );
+});
+
+async function compressImageIfNeeded(file, maxSizeMB) {
+  const maxSizeBytes = mbToBytes(maxSizeMB);
+
+  if (!isImageFile(file) || file.size <= maxSizeBytes) {
+    return file;
+  }
+
+  const image = await loadImageFromFile(file);
+  let width = image.width;
+  let height = image.height;
+  const maxDimension = 1920;
+
+  if (Math.max(width, height) > maxDimension) {
+    const scale = maxDimension / Math.max(width, height);
+    width = Math.round(width * scale);
+    height = Math.round(height * scale);
+  }
+
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    return file;
+  }
+
+  canvas.width = width;
+  canvas.height = height;
+  ctx.drawImage(image, 0, 0, width, height);
+
+  let quality = 0.85;
+  let blob = await canvasToBlob(canvas, quality);
+
+  while (blob.size > maxSizeBytes && quality > 0.45) {
+    quality -= 0.1;
+    blob = await canvasToBlob(canvas, quality);
+  }
+
+  if (blob.size > maxSizeBytes) {
+    // Last attempt with reduced dimensions.
+    canvas.width = Math.round(width * 0.85);
+    canvas.height = Math.round(height * 0.85);
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    blob = await canvasToBlob(canvas, Math.max(quality, 0.5));
+  }
+
+  if (blob.size > maxSizeBytes) {
+    return file;
+  }
+
+  const originalName = file.name.replace(/\.[^.]+$/, '');
+  return new File([blob], `${originalName}.jpg`, { type: 'image/jpeg' });
+}
 
 const navItems = [
   { key: 'farms', label: 'My Farms', icon: 'farms' },
@@ -49,20 +135,28 @@ function LiveLocationCapture({ onLocationCapture, onClear }) {
   const [locationError, setLocationError] = useState(null);
   const { addToast } = useToast();
 
-  const handleCapture = (e) => {
+  const handleCapture = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    if (file.size > mbToBytes(FILE_LIMITS_MB.LOCATION_PHOTO)) {
+    let processedFile = file;
+    try {
+      processedFile = await compressImageIfNeeded(file, FILE_LIMITS_MB.LOCATION_PHOTO);
+    } catch {
+      addToast('Could not optimize location photo. Please try another image.', 'error');
+      return;
+    }
+
+    if (processedFile.size > mbToBytes(FILE_LIMITS_MB.LOCATION_PHOTO)) {
       addToast(
-        `Location photo must be ${FILE_LIMITS_MB.LOCATION_PHOTO}MB or less`,
+        `Location photo is still too large after optimization. Please use a smaller image (max ${FILE_LIMITS_MB.LOCATION_PHOTO}MB).`,
         'error'
       );
       return;
     }
 
-    setPhoto(file);
-    setPreview(URL.createObjectURL(file));
+    setPhoto(processedFile);
+    setPreview(URL.createObjectURL(processedFile));
     setLocation(null);
     setLocationError(null);
 
@@ -74,7 +168,7 @@ function LiveLocationCapture({ onLocationCapture, onClear }) {
       (pos) => {
         const loc = { latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy };
         setLocation(loc);
-        onLocationCapture(loc, file);
+        onLocationCapture(loc, processedFile);
       },
       () => setLocationError("Location access denied. Please enable location services."),
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
@@ -133,22 +227,38 @@ function FarmCreationForm({ onDone, continueFarm = null }) {
   const us = (i,k,v) => { const s=[...data.stages]; s[i]={...s[i],[k]:v}; setData(p=>({...p,stages:s})); };
   const {getRootProps,getInputProps} = useDropzone({
     accept:{'image/*':[]},
-    maxSize: mbToBytes(FILE_LIMITS_MB.DISPLAY_PHOTO),
-    onDrop: files => {
-      // Create preview URLs for display
-      const newPhotos = files.map(f => Object.assign(f, { preview: URL.createObjectURL(f) }));
-      u('photos', [...data.photos, ...newPhotos]);
-    },
-    onDropRejected: (rejections) => {
-      const tooLarge = rejections.some((r) =>
-        r.errors.some((err) => err.code === 'file-too-large')
+    onDrop: async (files) => {
+      if (!files?.length) return;
+
+      const processed = await Promise.all(
+        files.map(async (file) => {
+          try {
+            const compressed = await compressImageIfNeeded(file, FILE_LIMITS_MB.DISPLAY_PHOTO);
+            if (compressed.size > mbToBytes(FILE_LIMITS_MB.DISPLAY_PHOTO)) {
+              return null;
+            }
+            return Object.assign(compressed, { preview: URL.createObjectURL(compressed) });
+          } catch {
+            return null;
+          }
+        })
       );
 
-      if (tooLarge) {
-        addToast(`Each display photo must be ${FILE_LIMITS_MB.DISPLAY_PHOTO}MB or less`, 'error');
-        return;
+      const acceptedPhotos = processed.filter(Boolean);
+      const rejectedCount = files.length - acceptedPhotos.length;
+
+      if (acceptedPhotos.length) {
+        u('photos', [...data.photos, ...acceptedPhotos]);
       }
 
+      if (rejectedCount > 0) {
+        addToast(
+          `${rejectedCount} photo(s) could not be optimized under ${FILE_LIMITS_MB.DISPLAY_PHOTO}MB. Please use smaller images.`,
+          'error'
+        );
+      }
+    },
+    onDropRejected: (rejections) => {
       addToast('Some files were rejected. Please upload only valid image files.', 'error');
     },
   });
@@ -550,20 +660,28 @@ function ProofUpload({ milestone, onSuccess }) {
   const [submitted, setSubmitted] = useState(false);
   const { addToast } = useToast();
 
-  const handleCapture = (e) => {
+  const handleCapture = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    if (file.size > mbToBytes(FILE_LIMITS_MB.MILESTONE_PHOTO)) {
+    let processedFile = file;
+    try {
+      processedFile = await compressImageIfNeeded(file, FILE_LIMITS_MB.MILESTONE_PHOTO);
+    } catch {
+      addToast('Could not optimize proof photo. Please try another image.', 'error');
+      return;
+    }
+
+    if (processedFile.size > mbToBytes(FILE_LIMITS_MB.MILESTONE_PHOTO)) {
       addToast(
-        `Proof photo must be ${FILE_LIMITS_MB.MILESTONE_PHOTO}MB or less`,
+        `Proof photo is still too large after optimization. Please use a smaller image (max ${FILE_LIMITS_MB.MILESTONE_PHOTO}MB).`,
         'error'
       );
       return;
     }
 
-    setPhoto(file);
-    setPreview(URL.createObjectURL(file));
+    setPhoto(processedFile);
+    setPreview(URL.createObjectURL(processedFile));
     setLocation(null);
     setLocationError(null);
 
@@ -1004,8 +1122,42 @@ function HarvestTab() {
   const [isVerifying, setIsVerifying] = useState(false);
 
   const { getRootProps, getInputProps } = useDropzone({ 
+    accept: { 'image/*': [] },
     multiple: true,
-    onDrop: files => setEvidence(prev => [...(Array.isArray(prev) ? prev : []), ...files]) 
+    onDrop: async (files) => {
+      if (!files?.length) return;
+
+      const processed = await Promise.all(
+        files.map(async (file) => {
+          try {
+            const compressed = await compressImageIfNeeded(file, FILE_LIMITS_MB.PAYMENT_PHOTO);
+            if (compressed.size > mbToBytes(FILE_LIMITS_MB.PAYMENT_PHOTO)) {
+              return null;
+            }
+            return compressed;
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      const acceptedFiles = processed.filter(Boolean);
+      const rejectedCount = files.length - acceptedFiles.length;
+
+      if (acceptedFiles.length) {
+        setEvidence((prev) => [...(Array.isArray(prev) ? prev : []), ...acceptedFiles]);
+      }
+
+      if (rejectedCount > 0) {
+        addToast(
+          `${rejectedCount} evidence file(s) exceeded ${FILE_LIMITS_MB.PAYMENT_PHOTO}MB after optimization.`,
+          'error'
+        );
+      }
+    },
+    onDropRejected: () => {
+      addToast('Some files were rejected. Please upload image files only.', 'error');
+    },
   });
 
   const fetchReadyFarms = async () => {
@@ -1406,8 +1558,8 @@ function HarvestTab() {
                   </div>
                 ) : (
                   <div>
-                    <span style={{fontSize:'14px',fontWeight:500,display:'block',marginBottom:'4px'}}>Click to upload photos or documents</span>
-                    <span style={{fontSize:'12px',color:'var(--color-text-secondary)'}}>PNG, JPG or PDF up to 10MB</span>
+                    <span style={{fontSize:'14px',fontWeight:500,display:'block',marginBottom:'4px'}}>Click to upload payment photos</span>
+                    <span style={{fontSize:'12px',color:'var(--color-text-secondary)'}}>PNG or JPG up to {FILE_LIMITS_MB.PAYMENT_PHOTO}MB each</span>
                   </div>
                 )}
               </div>
