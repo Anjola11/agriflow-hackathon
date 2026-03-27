@@ -6,7 +6,6 @@ import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import FarmCard from '../components/FarmCard';
 import SEO from '../components/SEO';
-import Icon from '../components/Icon';
 import { mockFarms } from '../data/mockData';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -125,19 +124,16 @@ export default function LandingPage() {
         <div className="container">
           <div className="trust-inner">
             <div className="trust-stat">
-              <div className="trust-icon-wrap"><Icon name="payments" size={32} /></div>
               <span className="trust-value text-mono">₦0</span>
               <span className="trust-label">No hidden fees</span>
             </div>
             <div className="trust-divider" />
             <div className="trust-stat">
-              <div className="trust-icon-wrap"><Icon name="milestones" size={32} /></div>
               <span className="trust-value text-mono">100%</span>
               <span className="trust-label">Verified farmers only</span>
             </div>
             <div className="trust-divider" />
             <div className="trust-stat">
-              <div className="trust-icon-wrap"><Icon name="harvest" size={32} /></div>
               <span className="trust-value text-mono">Cycle</span>
               <span className="trust-label">Harvest-backed returns</span>
             </div>
@@ -295,29 +291,12 @@ export default function LandingPage() {
           display: flex; 
           flex-direction: column; 
           align-items: center; 
-          gap: 12px;
-          transition: all var(--transition-base);
+          gap: 8px;
+          transition: transform var(--transition-base);
           cursor: default;
         }
         .trust-stat:hover {
-          transform: translateY(-8px);
-        }
-        .trust-icon-wrap {
-          width: 64px;
-          height: 64px;
-          background: var(--color-primary-light);
-          color: var(--color-primary);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 20px;
-          transition: all var(--transition-base);
-        }
-        .trust-stat:hover .trust-icon-wrap {
-          background: var(--color-primary);
-          color: #fff;
-          transform: rotate(10deg);
-          box-shadow: 0 8px 20px rgba(26, 107, 60, 0.2);
+          transform: translateY(-4px);
         }
         .trust-value { 
           font-size: 36px; 
@@ -333,7 +312,7 @@ export default function LandingPage() {
           text-transform: uppercase;
           letter-spacing: 0.5px;
         }
-        .trust-divider { width: 1px; height: 64px; background: var(--color-border); }
+        .trust-divider { width: 1px; height: 60px; background: var(--color-border); }
 
         /* Sections */
         .section { padding: 80px 0; }
