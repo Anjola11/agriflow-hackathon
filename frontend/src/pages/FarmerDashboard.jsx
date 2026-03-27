@@ -1820,7 +1820,7 @@ export default function FarmerDashboard() {
                     
                     <div style={{ flex: '2 1 300px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                        <span className="badge badge-active" style={{ background: 'var(--color-primary)', color: '#fff', fontSize: '11px', fontWeight: 700 }}>
+                        <span className="badge" style={{ background: 'var(--color-primary-light)', color: 'var(--color-primary)', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                           {user?.trust_tier === 'verified' ? 'Verified Farmer' : user?.trust_tier === 'emerging' ? 'Emerging Farmer' : 'Unrated'}
                         </span>
                         <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
