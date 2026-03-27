@@ -15,6 +15,14 @@ import Button from '../components/Button';
 import Icon from '../components/Icon';
 import { formatCurrency } from '../utils/format';
 
+const FILE_LIMITS_MB = {
+  DISPLAY_PHOTO: 5,
+  LOCATION_PHOTO: 3,
+  MILESTONE_PHOTO: 3,
+};
+
+const mbToBytes = (mb) => mb * 1024 * 1024;
+
 const navItems = [
   { key: 'farms', label: 'My Farms', icon: 'farms' },
   { key: 'add', label: 'Add Farm', icon: 'add' },
@@ -39,10 +47,20 @@ function LiveLocationCapture({ onLocationCapture, onClear }) {
   const [preview, setPreview] = useState(null);
   const [location, setLocation] = useState(null);
   const [locationError, setLocationError] = useState(null);
+  const { addToast } = useToast();
 
   const handleCapture = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    if (file.size > mbToBytes(FILE_LIMITS_MB.LOCATION_PHOTO)) {
+      addToast(
+        `Location photo must be ${FILE_LIMITS_MB.LOCATION_PHOTO}MB or less`,
+        'error'
+      );
+      return;
+    }
+
     setPhoto(file);
     setPreview(URL.createObjectURL(file));
     setLocation(null);
@@ -67,6 +85,7 @@ function LiveLocationCapture({ onLocationCapture, onClear }) {
     <div style={{ padding: '16px', background: 'var(--color-primary-light)', border: '1px solid var(--color-primary)', borderRadius: '8px', marginBottom: '16px' }}>
       <h4 style={{fontSize:'14px',fontWeight:600,color:'var(--color-primary)',marginBottom:'8px'}}>Live Farm Location Verification</h4>
       <p style={{fontSize:'12px',color:'var(--color-text-secondary)',marginBottom:'12px',lineHeight:1.4}}>Take a live picture at the farm to verify its GPS coordinates. This anchors your farm on AgriFlow. (Will not be shown to investors)</p>
+      <p style={{fontSize:'12px',color:'var(--color-text-secondary)',marginBottom:'12px'}}>Maximum location photo size: {FILE_LIMITS_MB.LOCATION_PHOTO}MB</p>
       
       {!preview ? (
         <label style={{ display: "block", cursor: "pointer", textAlign: "center", padding: "12px", borderRadius: "8px", background:'#fff', border:'1px solid var(--color-primary)' }}>
@@ -112,13 +131,26 @@ function FarmCreationForm({ onDone }) {
   const steps = ['Details','Budget','Timeline','Review', 'Upload'];
   const u = (k,v) => setData(p=>({...p,[k]:v}));
   const us = (i,k,v) => { const s=[...data.stages]; s[i]={...s[i],[k]:v}; setData(p=>({...p,stages:s})); };
-  const {getRootProps,getInputProps} = useDropzone({ 
-    accept:{'image/*':[]}, 
+  const {getRootProps,getInputProps} = useDropzone({
+    accept:{'image/*':[]},
+    maxSize: mbToBytes(FILE_LIMITS_MB.DISPLAY_PHOTO),
     onDrop: files => {
       // Create preview URLs for display
       const newPhotos = files.map(f => Object.assign(f, { preview: URL.createObjectURL(f) }));
       u('photos', [...data.photos, ...newPhotos]);
-    }
+    },
+    onDropRejected: (rejections) => {
+      const tooLarge = rejections.some((r) =>
+        r.errors.some((err) => err.code === 'file-too-large')
+      );
+
+      if (tooLarge) {
+        addToast(`Each display photo must be ${FILE_LIMITS_MB.DISPLAY_PHOTO}MB or less`, 'error');
+        return;
+      }
+
+      addToast('Some files were rejected. Please upload only valid image files.', 'error');
+    },
   });
 
   useEffect(() => {
@@ -173,6 +205,17 @@ function FarmCreationForm({ onDone }) {
     if (isNaN(returnRate) || returnRate <= 0) return addToast("Please enter a valid return rate", "error");
     if (!data.startDate) return addToast("Please select a start date", "error");
     if (!data.endDate) return addToast("Please select a harvest date", "error");
+
+    if (data.locationPhoto && data.locationPhoto.size > mbToBytes(FILE_LIMITS_MB.LOCATION_PHOTO)) {
+      return addToast(`Location photo must be ${FILE_LIMITS_MB.LOCATION_PHOTO}MB or less`, "error");
+    }
+
+    const oversizedDisplayPhoto = data.photos.find(
+      (photo) => photo.size > mbToBytes(FILE_LIMITS_MB.DISPLAY_PHOTO)
+    );
+    if (oversizedDisplayPhoto) {
+      return addToast(`Each display photo must be ${FILE_LIMITS_MB.DISPLAY_PHOTO}MB or less`, "error");
+    }
 
     setIsSubmitting(true);
     try {
@@ -407,12 +450,16 @@ function FarmCreationForm({ onDone }) {
 
           <div className="form-group" style={{marginTop:'8px'}}>
             <label className="form-label">Display Photos (for Investors)</label>
+            <p style={{fontSize:'12px',color:'var(--color-text-secondary)',marginTop:'-2px',marginBottom:'8px'}}>Maximum display photo size: {FILE_LIMITS_MB.DISPLAY_PHOTO}MB each</p>
             <div {...getRootProps()} className="dropzone"><input {...getInputProps()}/><span className="dropzone-inner" style={{display:'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'}}><Icon name="add" size={16} /> Drag photos here or click to browse</span></div>
             {data.photos.length > 0 && (
               <div style={{display:'flex', gap:'8px', flexWrap:'wrap', marginTop:'12px'}}>
                 {data.photos.map((file, i) => (
                   <div key={i} style={{position:'relative'}}>
                     <img src={file.preview} alt="" style={{width:'80px', height:'80px', objectFit:'cover', borderRadius:'8px', border:'1px solid var(--color-border)'}}/>
+                    <span style={{position:'absolute',bottom:'4px',left:'4px',background:'rgba(0,0,0,0.72)',color:'#fff',padding:'1px 6px',borderRadius:'10px',fontSize:'10px'}}>
+                      {(file.size / (1024 * 1024)).toFixed(2)}MB
+                    </span>
                     <button 
                       onClick={() => setData(p => ({...p, photos: p.photos.filter((_, idx) => idx !== i)}))}
                       style={{position:'absolute', top:'-6px', right:'-6px', background:'var(--color-danger)', color:'#fff', border:'none', borderRadius:'50%', width:'20px', height:'20px', fontSize:'12px', cursor:'pointer'}}
@@ -465,6 +512,15 @@ function ProofUpload({ milestone, onSuccess }) {
   const handleCapture = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    if (file.size > mbToBytes(FILE_LIMITS_MB.MILESTONE_PHOTO)) {
+      addToast(
+        `Proof photo must be ${FILE_LIMITS_MB.MILESTONE_PHOTO}MB or less`,
+        'error'
+      );
+      return;
+    }
+
     setPhoto(file);
     setPreview(URL.createObjectURL(file));
     setLocation(null);
@@ -531,6 +587,9 @@ function ProofUpload({ milestone, onSuccess }) {
     <div style={{ marginTop: '16px', padding: '24px', background: '#f9fbf9', border: '1px solid #e8f0e8', borderRadius: '12px' }}>
       {!preview ? (
         <div style={{ textAlign: "center" }}>
+          <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginBottom: '10px' }}>
+            Maximum proof photo size: {FILE_LIMITS_MB.MILESTONE_PHOTO}MB
+          </p>
           <label style={{ display: "inline-block", cursor: "pointer", textAlign: "center" }}>
             <input type="file" accept="image/*" capture="environment" onChange={handleCapture} style={{ display: "none" }} />
             <div className="btn" style={{ 
