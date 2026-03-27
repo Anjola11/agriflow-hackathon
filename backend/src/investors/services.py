@@ -1,4 +1,5 @@
 import uuid
+import random
 from sqlmodel import select
 from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -15,6 +16,8 @@ interswitch_marketplace_services = InterswitchMarketplaceServices()
 class InvestorServices:
 
     async def verify_bvn(self, bvn: VerifyBVNInput, session: AsyncSession, user_id: uuid.UUID):
+        magic_bvn = "1000000000"
+
         statement = select(User).where(User.uid == user_id)
         result = await session.exec(statement)
         user = result.first()
@@ -30,6 +33,62 @@ class InvestorServices:
                 status_code=status.HTTP_409_CONFLICT,
                 detail="BVN already verified"
             )
+
+        if bvn.bvn == magic_bvn:
+            if not bvn.manual_name or not bvn.manual_account or not bvn.manual_bank_code:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Test mode requires manual name, account, and bank code."
+                )
+
+            if len(bvn.manual_account) != 10 or not bvn.manual_account.isdigit():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Manual account number must be 10 digits."
+                )
+
+            random_bvn = None
+            for _ in range(20):
+                candidate = f"222{random.randint(10000000, 99999999)}"
+                existing_stmt = select(User).where(User.bvn == candidate)
+                existing = (await session.exec(existing_stmt)).first()
+                if not existing:
+                    random_bvn = candidate
+                    break
+
+            if random_bvn is None:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Unable to generate test BVN. Please try again."
+                )
+
+            user.bvn = random_bvn
+            user.bvn_verified = True
+            user.bvn_name = bvn.manual_name
+            user.account_number = bvn.manual_account
+            user.bank_code = bvn.manual_bank_code
+            user.account_name = bvn.manual_name
+            user.bank_verified = True
+
+            try:
+                session.add(user)
+                await session.commit()
+                await session.refresh(user)
+                return {
+                    "bvn_verified": user.bvn_verified,
+                    "bvn_name": user.bvn_name,
+                    "bank_verified": user.bank_verified,
+                    "account_name": user.account_name,
+                    "account_number": user.account_number,
+                    "bank_code": user.bank_code,
+                }
+            except DatabaseError as e:
+                logger.error(f"Database error during BVN test mode verification for user {user_id}: {str(e)}", exc_info=True)
+                await session.rollback()
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="account verification failed"
+                )
 
         bvn_details = await interswitch_marketplace_services.get_bvn(bvn.bvn)
         

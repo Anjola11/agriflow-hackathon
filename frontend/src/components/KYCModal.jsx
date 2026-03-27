@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import Modal from './Modal';
 import api from '../utils/api';
 import { useToast } from '../context/ToastContext';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/auth-context';
 import Icon from './Icon';
 
 export default function KYCModal({ isOpen, onClose, role }) {
+  const MAGIC_BVN = '1000000000';
+
   const [view, setView] = useState('bvn_input'); // 'bvn_input' | 'bvn_score' | 'bank_input' | 'complete'
   const [loading, setLoading] = useState(false);
   const { addToast } = useToast();
@@ -13,6 +15,9 @@ export default function KYCModal({ isOpen, onClose, role }) {
 
   // BVN States
   const [bvn, setBvn] = useState('');
+  const [manualName, setManualName] = useState('');
+  const [manualAccount, setManualAccount] = useState('');
+  const [manualBankCode, setManualBankCode] = useState('');
   const [bvnScoreData, setBvnScoreData] = useState(null);
 
   // Bank States
@@ -22,32 +27,71 @@ export default function KYCModal({ isOpen, onClose, role }) {
   const [accountNum, setAccountNum] = useState('');
   const [showBanksList, setShowBanksList] = useState(false);
   const [finalScoreData, setFinalScoreData] = useState(null);
+  const isHackathonTestMode = bvn === MAGIC_BVN;
 
   // Fetch Banks List
   useEffect(() => {
-    if (view === 'bank_input' && banks.length === 0) {
+    const shouldFetchBanks = view === 'bank_input' || (view === 'bvn_input' && isHackathonTestMode);
+
+    if (shouldFetchBanks && banks.length === 0) {
       api.get('/banks')
         .then(({ data }) => setBanks(data.data || []))
         .catch(() => addToast("Failed to lock available banks list", "error"));
     }
-  }, [view]);
+  }, [view, isHackathonTestMode, banks.length, addToast]);
 
   // Handle BVN Action
   const handleBvnVerify = async (e) => {
     e.preventDefault();
-    if (bvn.length !== 11 || !/^\d+$/.test(bvn)) return addToast("BVN must be 11 digits", "error");
+    const isValidNormalBvn = bvn.length === 11 && /^\d+$/.test(bvn);
+    const isValidMagicBvn = bvn === MAGIC_BVN;
+
+    if (!isValidNormalBvn && !isValidMagicBvn) {
+      return addToast('BVN must be 11 digits (or use 1000000000 for test mode)', 'error');
+    }
+
+    if (isHackathonTestMode) {
+      if (!manualName.trim() || manualAccount.length !== 10 || !manualBankCode) {
+        return addToast('Test mode requires full name, 10-digit account number, and bank selection', 'error');
+      }
+    }
     
     setLoading(true);
     try {
       const endpoint = role === 'farmer' ? '/farmers/verify-bvn' : '/investors/verify-bvn';
-      const { data } = await api.post(endpoint, { bvn });
+      const requestPayload = { bvn };
+
+      if (isHackathonTestMode) {
+        requestPayload.manual_name = manualName.trim();
+        requestPayload.manual_account = manualAccount;
+        requestPayload.manual_bank_code = manualBankCode;
+      }
+
+      const { data } = await api.post(endpoint, requestPayload);
       await fetchProfile(); // refresh layout flags
       
-      const payload = data.data || data;
+      const responsePayload = data.data || data;
       setBvnScoreData({
-        trust_score: payload.trust_score || 65,
-        trust_tier: payload.trust_tier || 'Emerging Farmer'
+        trust_score: responsePayload.trust_score || 65,
+        trust_tier: responsePayload.trust_tier || 'Emerging Farmer'
       });
+
+      if (responsePayload.bank_verified) {
+        setFinalScoreData(responsePayload);
+        setUser(prev => ({
+          ...prev,
+          bvn_verified: true,
+          bank_verified: true,
+          account_name: responsePayload.account_name || prev?.account_name,
+          account_number: manualAccount || prev?.account_number,
+          bank_code: manualBankCode || prev?.bank_code,
+          trust_score: responsePayload.trust_score ?? prev?.trust_score,
+          trust_tier: responsePayload.trust_tier ?? prev?.trust_tier
+        }));
+        addToast('Test mode verification simulated successfully', 'success');
+        setView('complete');
+        return;
+      }
 
       if (role === 'farmer') {
         setView('bvn_score');
@@ -108,12 +152,64 @@ export default function KYCModal({ isOpen, onClose, role }) {
       {/* STEP 1: BVN Input */}
       {view === 'bvn_input' && (
         <form onSubmit={handleBvnVerify} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.35)', borderRadius: '8px', padding: '12px', fontSize: '13px', color: '#92400e', lineHeight: 1.5 }}>
+            🧪 Hackathon Test Mode: To test the KYC functionality without a real BVN, please enter 1000000000. This will unlock manual profile creation.
+          </div>
           <div>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: '6px' }}>11-Digit BVN</label>
             <input type="text" value={bvn} onChange={e => setBvn(e.target.value.replace(/\D/g, '').slice(0, 11))} placeholder="Enter 11 digit numbers..." className="form-input" style={{ width: '100%' }} />
           </div>
-          <button type="submit" className="btn btn-solid" disabled={loading || bvn.length !== 11} style={{ width: '100%', background: 'var(--color-primary)' }}>
-            {loading ? "Verifying..." : "Verify BVN"}
+
+          {isHackathonTestMode && (
+            <>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: '6px' }}>Full Name</label>
+                <input
+                  type="text"
+                  value={manualName}
+                  onChange={(e) => setManualName(e.target.value)}
+                  placeholder="Enter full name..."
+                  className="form-input"
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: '6px' }}>Account Number</label>
+                <input
+                  type="text"
+                  value={manualAccount}
+                  onChange={(e) => setManualAccount(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  placeholder="Enter 10 digit number..."
+                  className="form-input"
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: '6px' }}>Select Bank</label>
+                <select
+                  value={manualBankCode}
+                  onChange={(e) => setManualBankCode(e.target.value)}
+                  className="form-input"
+                  style={{ width: '100%' }}
+                >
+                  <option value="">Select a bank</option>
+                  {banks.map((bank) => (
+                    <option key={bank.code} value={bank.code}>
+                        {bank.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
+
+          <button
+            type="submit"
+            className="btn btn-solid"
+            disabled={loading || (!isHackathonTestMode && bvn.length !== 11) || (isHackathonTestMode && (!manualName.trim() || manualAccount.length !== 10 || !manualBankCode))}
+            style={{ width: '100%', background: 'var(--color-primary)' }}
+          >
+            {loading ? "Verifying..." : isHackathonTestMode ? 'Simulate Verification' : 'Verify BVN'}
           </button>
         </form>
       )}
