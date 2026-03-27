@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8000/api/v1`,
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'https://agriflow-48541bc023cd.herokuapp.com/api/v1',
   withCredentials: true,
   timeout: 60000,
   headers: {
@@ -9,8 +9,7 @@ const api = axios.create({
   },
 });
 
-const PUBLIC_PAGES = ['/auth', '/admin/login', '/', '/farms'];
-
+const PUBLIC_PAGES = ['/auth', '/agriflow-controls-5592/login', '/', '/farms'];
 let isRefreshing = false;
 let failedQueue = [];
 
